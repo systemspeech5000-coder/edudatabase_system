@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, setCurrentTab }) => 
           className={`nav-btn ${currentTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setCurrentTab('dashboard')}
         >
-          <span className="nav-icon">✨</span> 나의 지난 결과
+          <span className="nav-icon">✨</span> 지난 결과 목록
         </button>
       </nav>
 

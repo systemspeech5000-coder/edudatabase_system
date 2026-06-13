@@ -210,8 +210,7 @@ export const CoachDashboard: React.FC = () => {
                     <div className="progress-track">
                       <div
                         className="progress-fill content-fill"
-                        style={{ width: `${(selectedStudent.scores?.contentAbility ?? 0 / 5) * 100}%` }}
-                      ></div>
+                        style={{ width: `${((selectedStudent.scores?.contentAbility ?? 0) / 5) * 100}%` }}                      ></div>
                     </div>
                   </div>
 
@@ -223,7 +222,7 @@ export const CoachDashboard: React.FC = () => {
                     <div className="progress-track">
                       <div
                         className="progress-fill delivery-fill"
-                        style={{ width: `${(selectedStudent.scores?.deliveryAbility ?? 0 / 10) * 100}%` }}
+                        style={{ width: `${((selectedStudent.scores?.deliveryAbility ?? 0) / 10) * 100}%` }}
                       ></div>
                     </div>
                   </div>
@@ -236,7 +235,7 @@ export const CoachDashboard: React.FC = () => {
                     <div className="progress-track">
                       <div
                         className="progress-fill interaction-fill"
-                        style={{ width: `${(selectedStudent.scores?.interactionAbility ?? 0 / 5) * 100}%` }}
+                        style={{ width: `${((selectedStudent.scores?.interactionAbility ?? 0) / 5) * 100}%` }}
                       ></div>
                     </div>
                   </div>
