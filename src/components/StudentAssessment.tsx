@@ -1,0 +1,806 @@
+import React, { useState } from 'react';
+import { db, storage, isFirebaseConfigured } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { type StudentInfo, type SpeechScores, type ConsultationMemo, type SpeechType, type StudentRecord, SYMPTOM_CATEGORIES } from '../types';
+import { generateConsultationMemoJpg } from '../utils/canvasGenerator';
+
+export const StudentAssessment: React.FC = () => {
+  // Global wizard states
+  const [studentName, setStudentName] = useState('');
+  const [isNameConfirmed, setIsNameConfirmed] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
+  const [submittedRecord, setSubmittedRecord] = useState<StudentRecord | null>(null);
+
+  // Form Field States
+  const [info, setInfo] = useState<StudentInfo>({
+    address: '',
+    birthDate: '',
+    visitRoute: '인터넷 검색',
+    contact: '',
+    email: '',
+  });
+
+  const [symptoms, setSymptoms] = useState<string[]>([]);
+  const [speechType, setSpeechType] = useState<SpeechType>('주도형');
+
+  const [scores, setScores] = useState<SpeechScores>({
+    contentAbility: 3,
+    deliveryAbility: 5,
+    interactionAbility: 3,
+  });
+
+  const [memo, setMemo] = useState<ConsultationMemo>({
+    pastDifficulty: '',
+    futureWorry: '',
+    desiredState: '',
+  });
+
+  // Welcome page submission
+  const handleNameConfirm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (studentName.trim()) {
+      setIsNameConfirmed(true);
+    }
+  };
+
+  // Symptom toggling
+  const handleSymptomToggle = (symptom: string) => {
+    setSymptoms(prev =>
+      prev.includes(symptom)
+        ? prev.filter(s => s !== symptom)
+        : [...prev, symptom]
+    );
+  };
+
+  // Input changes
+  const handleInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setInfo(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleScoreChange = (name: keyof SpeechScores, value: number) => {
+    setScores(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleMemoChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setMemo(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Validation per step
+  const isStepValid = () => {
+    if (currentStep === 1) {
+      return info.address.trim() && info.birthDate && info.contact.trim() && info.email.trim();
+    }
+    if (currentStep === 5) {
+      return memo?.pastDifficulty.trim() && memo?.futureWorry.trim() && memo?.desiredState.trim();
+    }
+    return true;
+  };
+
+  // Score levels indicators for middle schoolers
+  const getContentLabel = (val: number) => {
+    if (val <= 1) return '😢 연습이 좀 더 필요해요';
+    if (val <= 3) return '🙂 무난하게 작성할 수 있어요';
+    return '🌟 조리 있게 아주 잘 써요!';
+  };
+
+  const getDeliveryLabel = (val: number) => {
+    if (val <= 3) return '😢 발표할 때 떨리고 부끄러워요';
+    if (val <= 7) return '🙂 크게 소리 낼 수 있어요';
+    return '🌟 청중 앞에서도 자신감 백배!';
+  };
+
+  const getInteractionLabel = (val: number) => {
+    if (val <= 1) return '😢 혼자 일방적으로 말하는 것 같아요';
+    if (val <= 3) return '🙂 청중의 눈을 바라보며 얘기해요';
+    return '🌟 모두를 내 이야기에 집중시켜요!';
+  };
+
+  // Submit Handler
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setUploadProgress('상담 메모 이미지 생성 중...');
+
+    try {
+      const now = new Date();
+      const dateString = now.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      // 1. Generate JPG Blob via Canvas
+      const jpgBlob = await generateConsultationMemoJpg(studentName, speechType, symptoms, scores, memo, dateString);
+
+      let imageUrl = '';
+      const filename = `memos/${studentName}_${Date.now()}.jpg`;
+
+      // 2. Upload to Firebase Storage or use ObjectURL as mock
+      if (isFirebaseConfigured && storage && db) {
+        setUploadProgress('이미지 Cloud Storage 업로드 중...');
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, jpgBlob, { contentType: 'image/jpeg' });
+
+        setUploadProgress('이미지 다운로드 URL 가져오는 중...');
+        imageUrl = await getDownloadURL(storageRef);
+      } else {
+        // Mock fallback for Demo Mode: convert Blob to DataURL so it persists locally
+        imageUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(jpgBlob);
+        });
+      }
+
+      // 3. Save Student Record to Firestore or localStorage
+      const record: StudentRecord = {
+        name: studentName,
+        info,
+        symptoms,
+        speechType,
+        scores,
+        memo,
+        memoImageUrl: imageUrl,
+        createdAt: now.toISOString(),
+      };
+
+      if (isFirebaseConfigured && db) {
+        setUploadProgress('Firestore에 수강생 진단결과 등록 중...');
+        const docRef = await addDoc(collection(db, 'students'), record);
+        record.id = docRef.id;
+      } else {
+        // Save locally for Demo Mode
+        const localData = localStorage.getItem('voxmonitor_students');
+        const list = localData ? JSON.parse(localData) : [];
+        record.id = `local_${Date.now()}`;
+        list.push(record);
+        localStorage.setItem('voxmonitor_students', JSON.stringify(list));
+      }
+
+      setSubmittedRecord(record);
+      setUploadProgress('진단이 완료되었습니다!');
+      setIsSuccess(true);
+    } catch (error) {
+      console.error('Submission failed:', error);
+      alert('진단 결과를 제출하는 동안 에러가 발생했습니다: ' + (error as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setStudentName('');
+    setIsNameConfirmed(false);
+    setCurrentStep(1);
+    setIsSuccess(false);
+    setSymptoms([]);
+    setSpeechType('주도형');
+    setScores({ contentAbility: 3, deliveryAbility: 5, interactionAbility: 3 });
+    setMemo({ pastDifficulty: '', futureWorry: '', desiredState: '' });
+    setInfo({ address: '', birthDate: '', visitRoute: '인터넷 검색', contact: '', email: '' });
+  };
+
+  // Welcome / Name Input Screen
+  if (!isNameConfirmed) {
+    return (
+      <div className="welcome-screen animate-fade-in">
+        <div className="welcome-card card">
+          <div className="welcome-badge">🌱 스피치 진단 결과보기</div>
+          <h1 className="welcome-title">스피치 자가 진단</h1>
+          <p className="welcome-desc">
+            나의 스피치 유형과 능력 상태를 가볍게 점검해 봐요.<br />
+            이름을 입력하면 시작할 수 있습니다.
+          </p>
+          <form onSubmit={handleNameConfirm} className="welcome-form">
+            <div className="input-group">
+              <label htmlFor="studentName">수강생 이름</label>
+              <input
+                type="text"
+                id="studentName"
+                placeholder="이름을 알려주세요 (예: 김지우)"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-large" style={{ width: '100%' }}>
+              진단 시작하기 🚀
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Success Screen
+  if (isSuccess && submittedRecord) {
+    const totalScore = scores.contentAbility + scores.deliveryAbility + scores.interactionAbility;
+    const maxScore = 20;
+    const pct = Math.round((totalScore / maxScore) * 100);
+
+    return (
+      <div className="success-screen animate-scale-in">
+        <div className="success-card card text-center">
+          <div className="success-icon">🎉</div>
+          <h2 className="success-title">진단 결과 기록 완료!</h2>
+          <p className="success-desc">
+            <strong>{studentName}</strong> 님의 스피치 점수 체크가 안전하게 저장되었습니다.<br />
+            하단의 보고서를 다운로드하거나 저장할 수 있습니다.
+          </p>
+
+          <div className="score-summary-circle">
+            <svg viewBox="0 0 36 36" className="circular-chart indigo">
+              <path className="circle-bg"
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path className="circle"
+                strokeDasharray={`${pct}, 100`}
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <text x="18" y="20.35" className="percentage">{pct}%</text>
+            </svg>
+            <div className="score-label">
+              종합 스피치 역량 점수: <span className="highlight">{totalScore}점</span> / 20점
+            </div>
+          </div>
+
+          <div className="memo-preview-box">
+            <h3>📂 나의 종합 상담 기록 문서 (JPG)</h3>
+            <div className="memo-img-wrapper">
+              <img src={submittedRecord.memoImageUrl} alt="상담 메모 JPG" className="memo-preview-img" />
+            </div>
+            <a href={submittedRecord.memoImageUrl} download={`${studentName}_상담메모.jpg`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-small">
+              💾 이미지 저장 주소로 보기
+            </a>
+          </div>
+
+          <div className="success-actions">
+            <button onClick={handleReset} className="btn btn-primary btn-medium">
+              처음으로 돌아가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="assessment-wizard animate-fade-in">
+      {/* Step Progress Bar */}
+      <div className="wizard-progress-bar">
+        {[
+          { step: 1, label: '인적사항' },
+          { step: 2, label: '나의 증상' },
+          { step: 3, label: '스피치 유형' },
+          { step: 4, label: '스피치 점수' },
+          { step: 5, label: '고민 메모' },
+          { step: 6, label: '작성 검토' }
+        ].map((s) => (
+          <div
+            key={s.step}
+            className={`progress-step-item ${currentStep === s.step ? 'active' : ''} ${currentStep > s.step ? 'completed' : ''}`}
+            onClick={() => s.step < currentStep && setCurrentStep(s.step)}
+          >
+            <div className="step-num">{s.step < currentStep ? '✓' : s.step}</div>
+            <div className="step-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="wizard-content card">
+        <div className="wizard-header">
+          <span className="student-badge">수강생: {studentName}</span>
+          <h2 className="step-title">
+            {currentStep === 1 && '✏️ 기본 기재사항을 채워주세요'}
+            {currentStep === 2 && '🔍 발표할 때 내가 겪는 증상을 체크해봐요'}
+            {currentStep === 3 && '🦁 나의 스피치 유형을 선택해주세요'}
+            {currentStep === 4 && '📊 나의 스피치 능력 점수'}
+            {currentStep === 5 && '📝 나의 발표 고민을 들려주세요'}
+            {currentStep === 6 && '✅ 마지막으로 작성한 내용을 확인해봐요'}
+          </h2>
+        </div>
+
+        {/* Step 1: Basic Details */}
+        {currentStep === 1 && (
+          <div className="step-body animate-slide-up">
+            <div className="form-grid">
+              <div className="input-group">
+                <label>연락처 *</label>
+                <input
+                  type="text"
+                  name="contact"
+                  placeholder="예: 010-1234-5678"
+                  value={info.contact}
+                  onChange={handleInfoChange}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label>이메일 주소 *</label>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="예: hello@example.com"
+                  value={info.email}
+                  onChange={handleInfoChange}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label>생년월일 *</label>
+                <input
+                  type="date"
+                  name="birthDate"
+                  value={info.birthDate}
+                  onChange={handleInfoChange}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label>방문 경로 *</label>
+                <select name="visitRoute" value={info.visitRoute} onChange={handleInfoChange}>
+                  <option value="인터넷 검색">인터넷 검색</option>
+                  <option value="지인 소개">지인 소개</option>
+                  <option value="SNS 광고">SNS 광고</option>
+                  <option value="간판/배너 광고">간판/배너 광고</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              <div className="input-group full-width">
+                <label>주소 *</label>
+                <input
+                  type="text"
+                  name="address"
+                  placeholder="예: 서울시 서초구 서초대로..."
+                  value={info.address}
+                  onChange={handleInfoChange}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Speech Symptoms */}
+        {currentStep === 2 && (
+          <div className="step-body animate-slide-up">
+            <p className="step-desc-text">발표할 때 평소 느끼는 마음과 신체 반응을 선택해 주세요 (여러 개 선택 가능).</p>
+
+            <div className="symptom-sections">
+              <div className="symptom-category">
+                <h3 className="category-title text-indigo">1. 내용구성 📝</h3>
+                <div className="checkbox-list">
+                  {SYMPTOM_CATEGORIES.content.map(sym => (
+                    <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={symptoms.includes(sym)}
+                        onChange={() => handleSymptomToggle(sym)}
+                      />
+                      <span className="checkbox-custom"></span>
+                      <span className="symptom-label">{sym}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="symptom-category">
+                <h3 className="category-title text-purple">2. 표현 및 전달 🗣️</h3>
+                <div className="checkbox-list">
+                  {SYMPTOM_CATEGORIES.delivery.map(sym => (
+                    <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={symptoms.includes(sym)}
+                        onChange={() => handleSymptomToggle(sym)}
+                      />
+                      <span className="checkbox-custom"></span>
+                      <span className="symptom-label">{sym}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="symptom-category">
+                <h3 className="category-title text-pink">3. 청중과 상호작용 👥</h3>
+                <div className="checkbox-list">
+                  {SYMPTOM_CATEGORIES.interaction.map(sym => (
+                    <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={symptoms.includes(sym)}
+                        onChange={() => handleSymptomToggle(sym)}
+                      />
+                      <span className="checkbox-custom"></span>
+                      <span className="symptom-label">{sym}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Speech Type Selection */}
+        {currentStep === 3 && (
+          <div className="step-body animate-slide-up">
+            <p className="step-desc-text highlight-guide">
+              📌 먼저 스피치 유형 테스트를 완료한 뒤, 결과에 맞는 스피치 유형을 선택해주세요.
+            </p>
+            <div className="speech-type-grid">
+              {[
+                {
+                  type: '주도형' as SpeechType,
+                  emoji: '🦁',
+                  desc: '결과 중심 (주도형)',
+                  details: '할 말을 빠르게 던지고 결론을 바로 말하는 솔직하고 강한 자신감이 돋보이는 타입이에요.'
+                },
+                {
+                  type: '사교형' as SpeechType,
+                  emoji: '🐬',
+                  desc: '관계 중심 (사교형)',
+                  details: '분위기를 밝게 만들고 재미있는 스토리로 모두를 공감하게 하는 친근한 소통 타입이에요.'
+                },
+                {
+                  type: '안정형' as SpeechType,
+                  emoji: '🕊️',
+                  desc: '경청 중심 (안정형)',
+                  details: '남의 말을 잘 귀 기울여 듣고 배려하며, 부드럽고 편안하게 말하는 따뜻한 대화 타입이에요.'
+                },
+                {
+                  type: '신중형' as SpeechType,
+                  emoji: '🦉',
+                  desc: '사실 중심 (신중형)',
+                  details: '정확한 사실과 준비된 내용, 꼼꼼한 정보들을 순서대로 조근조근 말하는 든든한 신뢰 타입이에요.'
+                }
+              ].map((item) => (
+                <div
+                  key={item.type}
+                  className={`speech-type-card ${speechType === item.type ? 'active' : ''}`}
+                  onClick={() => setSpeechType(item.type)}
+                >
+                  <div className="type-card-badge">{item.type}</div>
+                  <div className="type-card-emoji">{item.emoji}</div>
+                  <h3 className="type-card-title">{item.desc}</h3>
+                  <p className="type-card-details">{item.details}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Ability Score Sliders */}
+        {currentStep === 4 && (
+          <div className="step-body animate-slide-up">
+            <p className="important-guide-box">📌 먼저 스피치 능력 테스트를 완료한 뒤, 나온 점수를 입력해주세요.</p>
+
+            <div className="sliders-container">
+              {/* Content Ability */}
+              <div className="slider-group">
+                <div className="slider-meta">
+                  <span className="slider-title">내용 구성능력 (주제 짜기, 순서 배치)</span>
+                  <span className="slider-score-value">{scores.contentAbility}점 / 5점</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="1"
+                  value={scores.contentAbility}
+                  onChange={(e) => handleScoreChange('contentAbility', Number(e.target.value))}
+                  className="accent-indigo"
+                />
+                <div className="slider-labels">
+                  <span>미흡 (0점)</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{getContentLabel(scores.contentAbility)}</span>
+                  <span>우수 (5점)</span>
+                </div>
+              </div>
+
+              {/* Delivery Ability */}
+              <div className="slider-group">
+                <div className="slider-meta">
+                  <span className="slider-title">표현 및 전달능력 (목소리 크기, 발음, 자세)</span>
+                  <span className="slider-score-value">{scores.deliveryAbility}점 / 10점</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="1"
+                  value={scores.deliveryAbility}
+                  onChange={(e) => handleScoreChange('deliveryAbility', Number(e.target.value))}
+                  className="accent-purple"
+                />
+                <div className="slider-labels">
+                  <span>미흡 (0점)</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{getDeliveryLabel(scores.deliveryAbility)}</span>
+                  <span>우수 (10점)</span>
+                </div>
+              </div>
+
+              {/* Interaction Ability */}
+              <div className="slider-group">
+                <div className="slider-meta">
+                  <span className="slider-title">청중과 상호작용 (반응 살피기, 집중 이끌기)</span>
+                  <span className="slider-score-value">{scores.interactionAbility}점 / 5점</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="1"
+                  value={scores.interactionAbility}
+                  onChange={(e) => handleScoreChange('interactionAbility', Number(e.target.value))}
+                  className="accent-pink"
+                />
+                <div className="slider-labels">
+                  <span>미흡 (0점)</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{getInteractionLabel(scores.interactionAbility)}</span>
+                  <span>우수 (5점)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Consultation Memo */}
+        {currentStep === 5 && (
+          <div className="step-body animate-slide-up">
+            <p className="step-desc-text">발표와 대화에 대한 나의 깊은 마음 속 고민이나 바라는 모습을 편하게 적어봐요.</p>
+            <div className="memos-form">
+              <div className="input-group textarea-group">
+                <label>Q1. 과거 발표와 관련해 어려움을 느꼈던 경험 *</label>
+                <textarea
+                  name="pastDifficulty"
+                  placeholder="예: 초등학교 때 친구들 앞에서 대본을 읽다가 목소리가 떨려 얼굴이 엄청 빨개졌던 경험이 있어요."
+                  value={memo?.pastDifficulty}
+                  onChange={handleMemoChange}
+                  required
+                />
+              </div>
+
+              <div className="input-group textarea-group">
+                <label>Q2. 앞으로의 발표에서 가장 걱정되는 부분 *</label>
+                <textarea
+                  name="futureWorry"
+                  placeholder="예: 다음 주 학교 수행평가 발표 때 갑자기 외운 대본이 생각 안 나서 가만히 서 있게 될까 봐 걱정돼요."
+                  value={memo?.futureWorry}
+                  onChange={handleMemoChange}
+                  required
+                />
+              </div>
+
+              <div className="input-group textarea-group">
+                <label>Q3. 발표에서 원하는 이미지나 상태 *</label>
+                <textarea
+                  name="desiredState"
+                  placeholder="예: 떨리지 않고 차분하게 내 생각을 전달하면서, 친구들도 흥미롭게 귀 기울이는 밝고 당당한 이미지가 되고 싶어요."
+                  value={memo?.desiredState}
+                  onChange={handleMemoChange}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Final Review */}
+        {currentStep === 6 && (
+          <div className="step-body animate-slide-up">
+            <p className="step-desc-text">마지막으로 아래 요약된 진단 결과가 맞는지 한번 꼼꼼히 훑어봐요.</p>
+            <div className="review-dashboard">
+              <div className="review-block">
+                <h3>📋 기본 사항</h3>
+                <table className="review-table">
+                  <tbody>
+                    <tr>
+                      <th>수강생 성명</th>
+                      <td>{studentName}</td>
+                    </tr>
+                    <tr>
+                      <th>연락처</th>
+                      <td>{info.contact}</td>
+                    </tr>
+                    <tr>
+                      <th>이메일 주소</th>
+                      <td>{info.email}</td>
+                    </tr>
+                    <tr>
+                      <th>생년월일</th>
+                      <td>{info.birthDate}</td>
+                    </tr>
+                    <tr>
+                      <th>방문 경로</th>
+                      <td>{info.visitRoute}</td>
+                    </tr>
+                    <tr>
+                      <th>주소</th>
+                      <td>{info.address}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="review-block">
+                <h3>🎯 유형 및 평가</h3>
+                <table className="review-table">
+                  <tbody>
+
+                    <tr>
+                      <th>스피치 유형</th>
+                      <td><span className="tag type-tag">{speechType}</span></td>
+                    </tr>
+                    <tr>
+                      <th>내용 구성</th>
+                      <td>{scores.contentAbility} / 5점</td>
+                    </tr>
+                    <tr>
+                      <th>표현 전달</th>
+                      <td>{scores.deliveryAbility} / 10점</td>
+                    </tr>
+                    <tr>
+                      <th>상호 작용</th>
+                      <td>{scores.interactionAbility} / 5점</td>
+                    </tr>
+                    <tr className="total-row">
+                      <th>종합 총점</th>
+                      <td>
+                        <strong>{scores.contentAbility + scores.deliveryAbility + scores.interactionAbility}</strong> / 20점
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ marginTop: '24px', textAlign: 'center' }}>
+                  <h4 style={{ marginBottom: '12px' }}>📊 스피치 역량 분포</h4>
+
+                  <svg width="260" height="220" viewBox="0 0 260 220">
+                    <polygon
+                      points="130,25 230,175 30,175"
+                      fill="#f8fafc"
+                      stroke="#cbd5e1"
+                      strokeWidth="2"
+                    />
+
+                    <line x1="130" y1="125" x2="130" y2="25" stroke="#cbd5e1" />
+                    <line x1="130" y1="125" x2="230" y2="175" stroke="#cbd5e1" />
+                    <line x1="130" y1="125" x2="30" y2="175" stroke="#cbd5e1" />
+
+                    <polygon
+                      points={`
+        ${130},${125 - 100 * (scores.contentAbility / 5)}
+        ${130 + 100 * 0.866 * (scores.deliveryAbility / 10)},${125 + 50 * (scores.deliveryAbility / 10)}
+        ${130 - 100 * 0.866 * (scores.interactionAbility / 5)},${125 + 50 * (scores.interactionAbility / 5)}
+      `}
+                      fill="rgba(139, 92, 246, 0.25)"
+                      stroke="#8b5cf6"
+                      strokeWidth="3"
+                    />
+
+                    <text x="130" y="16" textAnchor="middle" fontSize="12" fill="#1e293b">
+                      내용구성 {scores.contentAbility}/5
+                    </text>
+                    <text x="238" y="190" textAnchor="end" fontSize="12" fill="#1e293b">
+                      표현전달 {scores.deliveryAbility}/10
+                    </text>
+                    <text x="22" y="190" textAnchor="start" fontSize="12" fill="#1e293b">
+                      상호작용 {scores.interactionAbility}/5
+                    </text>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="review-block full-width">
+                <h3>⚠️ 체크된 스피치 증상 ({symptoms.length}개)</h3>
+                {symptoms.length > 0 ? (
+                  <div className="symptoms-summary-tags">
+                    {symptoms.map(sym => (
+                      <span key={sym} className="symptom-summary-tag">✓ {sym}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="no-symptoms-text">체크한 증상이 없어요.</p>
+                )}
+              </div>
+              <div className="review-block full-width">
+                <h3>📝 상담 메모</h3>
+                <table className="review-table">
+                  <tbody>
+                    <tr>
+                      <th>과거 발표와 관련해 어려움을 느꼈던 경험</th>
+                      <td>{memo?.pastDifficulty || '입력된 내용이 없습니다.'}</td>
+                    </tr>
+                    <tr>
+                      <th>앞으로의 발표에서 가장 걱정되는 부분</th>
+                      <td>{memo?.futureWorry || '입력된 내용이 없습니다.'}</td>
+                    </tr>
+                    <tr>
+                      <th>발표에서 원하는 이미지나 상태</th>
+                      <td>{memo?.desiredState || '입력된 내용이 없습니다.'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        )}
+
+        <div className="wizard-footer">
+          {currentStep > 1 ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setCurrentStep(prev => prev - 1)}
+              disabled={isSubmitting}
+            >
+              ⬅️ 이전 단계
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setIsNameConfirmed(false)}
+              disabled={isSubmitting}
+            >
+              이름 바꾸기
+            </button>
+          )}
+
+          {(currentStep === 3 || currentStep === 4) && (
+            <button
+              type="button"
+              className="btn btn-primary test-important-btn"
+              onClick={() => window.open('https://eduproject-qbwau69h1-attractionspeech-3197s-projects.vercel.app/', '_blank')}
+              disabled={isSubmitting}
+            >
+              🚀스피치 유형/능력 테스트 하러가기
+            </button>
+          )}
+
+          {currentStep < 6 ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setCurrentStep(prev => prev + 1)}
+              disabled={!isStepValid()}
+            >
+              다음 단계 ➡️
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-success"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? '업로드 중...' : '💾 진단 완료 및 저장'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isSubmitting && (
+        <div className="overlay">
+          <div className="loader-card card text-center">
+            <div className="spinner"></div>
+            <h3>나의 소중한 스피치 진단 파일 저장 중...</h3>
+            <p className="loader-status">{uploadProgress}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
