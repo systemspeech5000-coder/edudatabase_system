@@ -9,12 +9,14 @@ import {
 import { Header } from './components/Header';
 import { StudentAssessment } from './components/StudentAssessment';
 import { CoachDashboard } from './components/CoachDashboard';
+import { FinanceDashboard } from './components/FinanceDashboard';
 import { auth, isFirebaseConfigured } from './firebase';
 
 type AppMode = 'select' | 'student' | 'teacherLogin' | 'teacher';
+type AppTab = 'assessment' | 'dashboard' | 'finance';
 
 function App() {
-  const [currentTab, setCurrentTab] = useState<'assessment' | 'dashboard'>('assessment');
+  const [currentTab, setCurrentTab] = useState<AppTab>('assessment');
   const [showConfigGuide, setShowConfigGuide] = useState(!isFirebaseConfigured);
 
   const [user, setUser] = useState<User | null>(null);
@@ -71,6 +73,7 @@ function App() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
       setAppMode('select');
+      setCurrentTab('assessment');
     } catch (error: any) {
       console.error('로그인 실패 코드:', error.code);
       console.error('로그인 실패 메시지:', error.message);
@@ -107,7 +110,6 @@ function App() {
 
     try {
       await signInWithEmailAndPassword(auth!, user.email || '', teacherPassword);
-
       setAppMode('teacher');
       setCurrentTab('dashboard');
     } catch (error) {
@@ -142,6 +144,7 @@ function App() {
     setAppMode('teacherLogin');
     setCurrentTab('assessment');
     setLoginError('');
+    setLoginPassword('');
     setTeacherPassword('');
     setTeacherLoginError('');
   };
@@ -150,13 +153,13 @@ function App() {
     setAppMode('student');
     setCurrentTab('assessment');
   };
+
   const goToFirstScreen = () => {
     setAppMode('select');
     setCurrentTab('assessment');
     setTeacherPassword('');
     setTeacherLoginError('');
   };
-
 
   if (isAuthLoading) {
     return (
@@ -170,199 +173,245 @@ function App() {
     if (appMode === 'teacherLogin') {
       return (
         <div
-          className="card animate-fade-in"
           style={{
-            maxWidth: '520px',
-            margin: '5rem auto',
-            padding: '2.5rem',
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            boxSizing: 'border-box',
           }}
         >
           <div
+            className="card animate-fade-in"
             style={{
               width: '100%',
-              maxWidth: '460px',
-              margin: '0 auto',
-              boxSizing: 'border-box',
+              maxWidth: '760px',
+              padding: '2.8rem 3.4rem',
+              textAlign: 'center',
+              borderRadius: '34px',
+              background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
+              border: '1.5px solid rgba(196, 181, 253, 0.7)',
+              boxShadow: '0 28px 80px rgba(88, 28, 135, 0.18)',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: '-70px',
+                right: '-60px',
+                width: '180px',
+                height: '180px',
+                borderRadius: '999px',
+                background: 'rgba(216, 180, 254, 0.35)',
+              }}
+            />
+
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '-80px',
+                left: '-70px',
+                width: '200px',
+                height: '200px',
+                borderRadius: '999px',
+                background: 'rgba(251, 207, 232, 0.38)',
+              }}
+            />
+
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '620px',
+                margin: '0 auto',
+                boxSizing: 'border-box',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
+                <div
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '22px',
+                    background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 1rem auto',
+                    fontSize: '1.8rem',
+                    boxShadow: '0 14px 30px rgba(139, 92, 246, 0.28)',
+                  }}
+                >
+                  👩‍🏫
+                </div>
+
+                <h1
+                  className="welcome-title"
+                  style={{
+                    textAlign: 'center',
+                    margin: 0,
+                    fontSize: '1.65rem',
+                    fontWeight: 950,
+                    color: '#4c1d95',
+                  }}
+                >
+                  교사 로그인
+                </h1>
+
+                <p
+                  className="step-desc-text"
+                  style={{
+                    textAlign: 'center',
+                    margin: '0.65rem 0 0 0',
+                    fontSize: '0.95rem',
+                    fontWeight: 650,
+                    color: '#64748b',
+                    lineHeight: 1.55,
+                  }}
+                >
+                  교사용 모니터링 페이지에 접속합니다.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      marginBottom: '0.6rem',
+                      fontSize: '1.05rem',
+                      fontWeight: 900,
+                      color: '#4c1d95',
+                      textAlign: 'left',
+                    }}
+                  >
+                    교사 이메일
+                  </label>
+
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="교사 이메일 입력"
+                    style={{
+                      width: '100%',
+                      height: '54px',
+                      borderRadius: '17px',
+                      border: '1.5px solid #ddd6fe',
+                      background: '#ffffff',
+                      padding: '0 1rem',
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      color: '#334155',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                    }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      marginBottom: '0.6rem',
+                      fontSize: '1.05rem',
+                      fontWeight: 900,
+                      color: '#4c1d95',
+                      textAlign: 'left',
+                    }}
+                  >
+                    교사 비밀번호
+                  </label>
+
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleEmailLogin();
+                      }
+                    }}
+                    placeholder="교사 비밀번호 입력"
+                    style={{
+                      width: '100%',
+                      height: '54px',
+                      borderRadius: '17px',
+                      border: '1.5px solid #ddd6fe',
+                      background: '#ffffff',
+                      padding: '0 1rem',
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      color: '#334155',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                    }}
+                  />
+                </div>
+
+                {loginError && (
+                  <p
+                    style={{
+                      color: 'hsl(350, 75%, 45%)',
+                      fontWeight: 800,
+                      margin: '-0.3rem 0 0 0',
+                      fontSize: '0.9rem',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {loginError}
+                  </p>
+                )}
+              </div>
+
               <div
                 style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '22px',
-                  background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 1rem auto',
-                  fontSize: '1.8rem',
-                  boxShadow: '0 14px 30px rgba(139, 92, 246, 0.28)',
+                  gap: '0.8rem',
+                  marginTop: '1.7rem',
+                  flexWrap: 'wrap',
                 }}
               >
-                👩‍🏫
-              </div>
-
-              <h1
-                className="welcome-title"
-                style={{
-                  textAlign: 'center',
-                  margin: 0,
-                  fontSize: '1.65rem',
-                  fontWeight: 950,
-                  color: '#4c1d95',
-                }}
-              >
-                교사 로그인
-              </h1>
-
-              <p
-                className="step-desc-text"
-                style={{
-                  textAlign: 'center',
-                  margin: '0.65rem 0 0 0',
-                  fontSize: '0.95rem',
-                  fontWeight: 650,
-                  color: '#64748b',
-                  lineHeight: 1.55,
-                }}
-              >
-                교사용 모니터링 페이지에 접속합니다.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem',
-              }}
-            >
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleEmailLogin}
+                  disabled={isLoginLoading}
                   style={{
-                    display: 'block',
-                    marginBottom: '0.6rem',
+                    width: '220px',
+                    height: '56px',
+                    borderRadius: '18px',
                     fontSize: '1.05rem',
-                    fontWeight: 900,
-                    color: '#4c1d95',
+                    fontWeight: 950,
+                    boxShadow: '0 14px 28px rgba(124, 58, 237, 0.26)',
                   }}
                 >
-                  교사 이메일
-                </label>
+                  {isLoginLoading ? '로그인 중...' : '교사 로그인'}
+                </button>
 
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="교사 이메일 입력"
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setAppMode('select')}
+                  disabled={isLoginLoading}
                   style={{
-                    width: '100%',
-                    height: '54px',
-                    borderRadius: '17px',
-                    border: '1.5px solid #ddd6fe',
-                    background: '#ffffff',
-                    padding: '0 1rem',
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    color: '#334155',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                    width: '160px',
+                    height: '56px',
+                    borderRadius: '18px',
+                    fontSize: '0.92rem',
+                    fontWeight: 850,
                   }}
-                />
+                >
+                  돌아가기
+                </button>
               </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '0.6rem',
-                    fontSize: '1.05rem',
-                    fontWeight: 900,
-                    color: '#4c1d95',
-                  }}
-                >
-                  교사 비밀번호
-                </label>
-
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="교사 비밀번호 입력"
-                  style={{
-                    width: '100%',
-                    height: '54px',
-                    borderRadius: '17px',
-                    border: '1.5px solid #ddd6fe',
-                    background: '#ffffff',
-                    padding: '0 1rem',
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    color: '#334155',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
-                  }}
-                />
-              </div>
-
-              {loginError && (
-                <p
-                  style={{
-                    color: 'hsl(350, 75%, 45%)',
-                    fontWeight: 800,
-                    margin: '-0.3rem 0 0 0',
-                    fontSize: '0.9rem',
-                  }}
-                >
-                  {loginError}
-                </p>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.8rem',
-                marginTop: '1.7rem',
-              }}
-            >
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleEmailLogin}
-                disabled={isLoginLoading}
-                style={{
-                  width: '220px',
-                  height: '56px',
-                  borderRadius: '18px',
-                  fontSize: '1.05rem',
-                  fontWeight: 950,
-                  boxShadow: '0 14px 28px rgba(124, 58, 237, 0.26)',
-                }}
-              >
-                {isLoginLoading ? '로그인 중...' : '교사 로그인'}
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setAppMode('select')}
-                disabled={isLoginLoading}
-                style={{
-                  width: '160px',
-                  height: '44px',
-                  borderRadius: '16px',
-                  fontSize: '0.92rem',
-                  fontWeight: 850,
-                }}
-              >
-                돌아가기
-              </button>
             </div>
           </div>
         </div>
@@ -398,8 +447,9 @@ function App() {
         style={{
           minHeight: '100vh',
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          padding: '1.5rem 2rem 2rem',
+          padding: '2rem',
           boxSizing: 'border-box',
         }}
       >
@@ -407,9 +457,8 @@ function App() {
           className="card animate-fade-in"
           style={{
             width: '100%',
-            maxWidth: '680px',
+            maxWidth: '960px',
             padding: '3.2rem 3rem',
-            marginTop: '-2rem',
             textAlign: 'center',
             borderRadius: '34px',
             background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -489,8 +538,8 @@ function App() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '1rem',
+                gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))',
+                gap: '1.25rem',
                 marginTop: '2.2rem',
                 marginBottom: '1.5rem',
               }}
@@ -501,7 +550,7 @@ function App() {
                 style={{
                   border: 'none',
                   borderRadius: '24px',
-                  padding: '1.35rem 1rem',
+                  padding: '1.6rem 1.4rem',
                   background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
                   color: '#5b21b6',
                   fontSize: '1.25rem',
@@ -530,7 +579,7 @@ function App() {
                 style={{
                   border: 'none',
                   borderRadius: '24px',
-                  padding: '1.35rem 1rem',
+                  padding: '1.6rem 1.4rem',
                   background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
                   color: '#9d174d',
                   fontSize: '1.25rem',
@@ -801,12 +850,15 @@ function App() {
             background: 'rgba(251, 207, 232, 0.38)',
           }}
         />
+
         <div
           style={{
             width: '100%',
             maxWidth: '460px',
             margin: '0 auto',
             boxSizing: 'border-box',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
@@ -855,13 +907,7 @@ function App() {
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.25rem',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label
                 style={{
@@ -913,6 +959,11 @@ function App() {
                 type="password"
                 value={teacherPassword}
                 onChange={(e) => setTeacherPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleTeacherLogin();
+                  }
+                }}
                 placeholder="교사 비밀번호 입력"
                 style={{
                   width: '100%',
@@ -1054,7 +1105,11 @@ function App() {
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {isTeacherMode ? (
-          <CoachDashboard />
+          currentTab === 'finance' ? (
+            <FinanceDashboard />
+          ) : (
+            <CoachDashboard />
+          )
         ) : (
           <StudentAssessment />
         )}

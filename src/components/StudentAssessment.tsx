@@ -4,6 +4,36 @@ import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { type StudentInfo, type SpeechScores, type ConsultationMemo, type SpeechType, type StudentRecord, SYMPTOM_CATEGORIES } from '../types';
 import { generateConsultationMemoJpg } from '../utils/canvasGenerator';
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: {
+        oncomplete: (data: {
+          roadAddress: string;
+          jibunAddress: string;
+          zonecode: string;
+        }) => void;
+      }) => {
+        open: () => void;
+      };
+    };
+  }
+}
+const formatPhoneNumber = (value: string) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
+
+  if (numbers.length <= 3) return numbers;
+  if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+  return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`;
+};
+
+const formatBirthDate = (value: string) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 8);
+
+  if (numbers.length <= 4) return numbers;
+  if (numbers.length <= 6) return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
+  return `${numbers.slice(0, 4)}-${numbers.slice(4, 6)}-${numbers.slice(6)}`;
+};
 
 export const StudentAssessment: React.FC = () => {
   const [studentName, setStudentName] = useState('');
@@ -17,10 +47,13 @@ export const StudentAssessment: React.FC = () => {
   const [info, setInfo] = useState<StudentInfo>({
     address: '',
     birthDate: '',
-    visitRoute: '인터넷 검색',
+    visitRoute: '',
     contact: '',
     email: '',
   });
+  const [emailId, setEmailId] = useState('');
+  const [emailDomain, setEmailDomain] = useState('@gmail.com');
+  const [customEmailDomain, setCustomEmailDomain] = useState('');
 
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [speechType, setSpeechType] = useState<SpeechType>('주도형');
@@ -55,8 +88,62 @@ export const StudentAssessment: React.FC = () => {
 
   const handleInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setInfo((prev) => ({ ...prev, [name]: value }));
+
+    let nextValue = value;
+
+    if (name === 'contact') {
+      nextValue = formatPhoneNumber(value);
+    }
+
+    if (name === 'birthDate') {
+      nextValue = formatBirthDate(value);
+    }
+
+    setInfo((prev) => ({ ...prev, [name]: nextValue }));
   };
+  const updateEmail = (
+    nextEmailId: string,
+    nextEmailDomain: string,
+    nextCustomDomain = customEmailDomain
+  ) => {
+    const cleanedEmailId = nextEmailId.replace(/\s/g, '').replace(/@/g, '');
+
+    const cleanedCustomDomain = nextCustomDomain
+      ? `@${nextCustomDomain.replace(/\s/g, '').replace(/@/g, '')}`
+      : '';
+
+    const finalDomain =
+      nextEmailDomain === 'custom' ? cleanedCustomDomain : nextEmailDomain;
+
+    setEmailId(cleanedEmailId);
+    setEmailDomain(nextEmailDomain);
+    setCustomEmailDomain(nextCustomDomain);
+
+    setInfo((prev) => ({
+      ...prev,
+      email: finalDomain ? `${cleanedEmailId}${finalDomain}` : '',
+    }));
+  };
+
+
+  const handleAddressSearch = () => {
+    if (!window.daum?.Postcode) {
+      alert('주소 검색 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    new window.daum.Postcode({
+      oncomplete: (data) => {
+        const selectedAddress = data.roadAddress || data.jibunAddress;
+
+        setInfo((prev) => ({
+          ...prev,
+          address: selectedAddress,
+        }));
+      },
+    }).open();
+  };
+
 
   const handleScoreChange = (name: keyof SpeechScores, value: number) => {
     setScores((prev) => ({ ...prev, [name]: value }));
@@ -69,8 +156,15 @@ export const StudentAssessment: React.FC = () => {
 
   const isStepValid = () => {
     if (currentStep === 1) {
-      return info.address.trim() && info.birthDate && info.contact.trim() && info.email.trim();
+      return (
+        info.address.trim() &&
+        info.birthDate &&
+        info.contact.trim() &&
+        info.email.trim() &&
+        info.visitRoute
+      );
     }
+
 
     if (currentStep === 5) {
       return memo?.pastDifficulty.trim() && memo?.futureWorry.trim() && memo?.desiredState.trim();
@@ -181,7 +275,10 @@ export const StudentAssessment: React.FC = () => {
     setSpeechType('주도형');
     setScores({ contentAbility: 3, deliveryAbility: 5, interactionAbility: 3 });
     setMemo({ pastDifficulty: '', futureWorry: '', desiredState: '' });
-    setInfo({ address: '', birthDate: '', visitRoute: '인터넷 검색', contact: '', email: '' });
+    setInfo({ address: '', birthDate: '', visitRoute: '', contact: '', email: '' });
+    setEmailId('');
+    setEmailDomain('@gmail.com');
+    setCustomEmailDomain('');
   };
 
   if (!isNameConfirmed) {
@@ -476,8 +573,8 @@ export const StudentAssessment: React.FC = () => {
           <h2 className="step-title">
             {currentStep === 1 && '✏️ 기본 기재사항을 채워주세요'}
             {currentStep === 2 && '🔍 발표할 때 내가 겪는 증상을 체크해봐요'}
-            {currentStep === 3 && '🦁 나의 스피치 유형을 선택해주세요'}
-            {currentStep === 4 && '📊 나의 스피치 능력 점수'}
+            {currentStep === 3 && '🦁 테스트 버튼 클릭 후, 나의 스피치 유형을 선택해주세요'}
+            {currentStep === 4 && '📊 테스트 버튼 클릭 후, 나의 스피치 능력 점수를 선택해주세요'}
             {currentStep === 5 && '📝 나의 발표 고민을 들려주세요'}
             {currentStep === 6 && '✅ 마지막으로 작성한 내용을 확인해봐요'}
           </h2>
@@ -491,58 +588,115 @@ export const StudentAssessment: React.FC = () => {
                 <input
                   type="text"
                   name="contact"
-                  placeholder="예: 010-1234-5678"
+                  inputMode="numeric"
+                  placeholder="숫자만 입력해도 자동으로 표시돼요"
                   value={info.contact}
                   onChange={handleInfoChange}
+                  maxLength={13}
                   required
                 />
+
               </div>
 
               <div className="input-group">
                 <label>이메일 주소 *</label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="예: hello@example.com"
-                  value={info.email}
-                  onChange={handleInfoChange}
-                  required
-                />
+
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="이메일 아이디"
+                    value={emailId}
+                    onChange={(e) => updateEmail(e.target.value, emailDomain)}
+                    required
+                    style={{ flex: 1, minWidth: '150px' }}
+                  />
+
+                  {emailDomain === 'custom' && (
+                    <input
+                      type="text"
+                      placeholder="예: @kakao.com"
+                      value={customEmailDomain}
+                      onChange={(e) => updateEmail(emailId, 'custom', e.target.value)}
+                      required
+                      style={{ width: '180px' }}
+                    />
+                  )}
+
+                  <select
+                    value={emailDomain}
+                    onChange={(e) => updateEmail(emailId, e.target.value)}
+                    required
+                    style={{ width: '160px' }}
+                  >
+                    <option value="@gmail.com">@gmail.com</option>
+                    <option value="@naver.com">@naver.com</option>
+                    <option value="@daum.net">@daum.net</option>
+                    <option value="@hanmail.net">@hanmail.net</option>
+                    <option value="custom">직접 입력</option>
+                  </select>
+                </div>
               </div>
 
+
               <div className="input-group">
-                <label>생년월일 *</label>
+                <label>생년월일 (8자리 입력) *</label>
                 <input
-                  type="date"
+                  type="text"
                   name="birthDate"
+                  inputMode="numeric"
+                  placeholder="예: 19890923"
                   value={info.birthDate}
                   onChange={handleInfoChange}
+                  maxLength={10}
                   required
                 />
+
               </div>
 
               <div className="input-group">
                 <label>방문 경로 *</label>
-                <select name="visitRoute" value={info.visitRoute} onChange={handleInfoChange}>
+                <select name="visitRoute" value={info.visitRoute} onChange={handleInfoChange} required>
+                  <option value="">방문 경로를 선택해주세요</option>
                   <option value="인터넷 검색">인터넷 검색</option>
+                  <option value="블로그">블로그</option>
+                  <option value="유튜브">유튜브</option>
+                  <option value="인스타">인스타</option>
                   <option value="지인 소개">지인 소개</option>
-                  <option value="SNS 광고">SNS 광고</option>
+                  <option value="SNS광고">SNS광고</option>
                   <option value="간판/배너 광고">간판/배너 광고</option>
                   <option value="기타">기타</option>
                 </select>
+
               </div>
 
               <div className="input-group full-width">
-                <label>주소 *</label>
-                <input
-                  type="text"
-                  name="address"
-                  placeholder="예: 서울시 서초구 서초대로..."
-                  value={info.address}
-                  onChange={handleInfoChange}
-                  required
-                />
+                <label>주소(동까지만 쓰셔도 되요) *</label>
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    name="address"
+                    placeholder="예: 서울시 관악구 낙성대동"
+                    value={info.address}
+                    onChange={handleInfoChange}
+                    required
+                    style={{ flex: 1 }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleAddressSearch}
+                    className="btn btn-secondary"
+                    style={{
+                      whiteSpace: 'nowrap',
+                      padding: '0 1rem',
+                    }}
+                  >
+                    주소 검색
+                  </button>
+                </div>
               </div>
+
             </div>
           </div>
         )}

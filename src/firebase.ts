@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,39 +12,27 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Firebase 필수 환경변수 확인
-export const isFirebaseConfigured = !!(
+export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey &&
   firebaseConfig.authDomain &&
   firebaseConfig.projectId &&
   firebaseConfig.storageBucket &&
   firebaseConfig.messagingSenderId &&
-  firebaseConfig.appId &&
-  !firebaseConfig.apiKey.includes('your-') &&
-  firebaseConfig.apiKey !== ''
+  firebaseConfig.appId
 );
 
-let db: ReturnType<typeof getFirestore> | null = null;
-let storage: ReturnType<typeof getStorage> | null = null;
-let auth: ReturnType<typeof getAuth> | null = null;
-let googleProvider: GoogleAuthProvider | null = null;
+let app: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
+let dbInstance: Firestore | null = null;
+let storageInstance: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured) {
-  try {
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-    db = getFirestore(app);
-    storage = getStorage(app);
-    auth = getAuth(app);
-    googleProvider = new GoogleAuthProvider();
-
-    console.log('Firebase successfully initialized.');
-  } catch (error) {
-    console.error('Firebase initialization failed:', error);
-  }
-} else {
-  console.warn('Firebase credentials are not configured. Running in Demo Mode.');
+  app = initializeApp(firebaseConfig);
+  authInstance = getAuth(app);
+  dbInstance = getFirestore(app);
+  storageInstance = getStorage(app);
 }
 
-export { db, storage, auth, googleProvider };
-export { firebaseConfig };
+export const auth = authInstance;
+export const db = dbInstance;
+export const storage = storageInstance;

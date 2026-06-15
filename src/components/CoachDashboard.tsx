@@ -45,6 +45,18 @@ const getKoreanDate = (value: any) => {
 
   return date.toLocaleDateString('ko-KR');
 };
+const getKoreanDateTime = (value: any) => {
+  const date = getDateObject(value);
+  if (!date) return '-';
+
+  return date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 const truncateText = (text: string, maxLength = 7) => {
   if (text.length <= maxLength) return text;
@@ -70,6 +82,8 @@ export const CoachDashboard: React.FC = () => {
   const [appliedGalleryName, setAppliedGalleryName] = useState('');
   const [appliedGalleryStartDate, setAppliedGalleryStartDate] = useState('');
   const [appliedGalleryEndDate, setAppliedGalleryEndDate] = useState('');
+  const [selectedMemoIds, setSelectedMemoIds] = useState<string[]>([]);
+  const [isTrendVisible, setIsTrendVisible] = useState(false);
 
   const openCuteDetail = (
     event: React.MouseEvent,
@@ -141,6 +155,83 @@ export const CoachDashboard: React.FC = () => {
       return matchesName && matchesStartDate && matchesEndDate;
     });
   }, [students, appliedGalleryName, appliedGalleryStartDate, appliedGalleryEndDate]);
+  const selectedTrendStudents = useMemo(() => {
+    return students
+      .filter((student) => student.id && selectedMemoIds.includes(student.id))
+      .sort((a, b) => {
+        const dateA = getDateObject(a.createdAt)?.getTime() ?? 0;
+        const dateB = getDateObject(b.createdAt)?.getTime() ?? 0;
+
+        return dateA - dateB;
+      });
+  }, [students, selectedMemoIds]);
+
+  const selectedTrendSummary = useMemo(() => {
+    if (selectedTrendStudents.length < 2) {
+      return null;
+    }
+
+    const firstRecord = selectedTrendStudents[0];
+    const latestRecord = selectedTrendStudents[selectedTrendStudents.length - 1];
+
+    const scoreChanges = [
+      {
+        label: '내용 구성',
+        first: firstRecord.scores?.contentAbility ?? 0,
+        latest: latestRecord.scores?.contentAbility ?? 0,
+        max: 5,
+      },
+      {
+        label: '표현 및 전달',
+        first: firstRecord.scores?.deliveryAbility ?? 0,
+        latest: latestRecord.scores?.deliveryAbility ?? 0,
+        max: 10,
+      },
+      {
+        label: '청중 상호작용',
+        first: firstRecord.scores?.interactionAbility ?? 0,
+        latest: latestRecord.scores?.interactionAbility ?? 0,
+        max: 5,
+      },
+    ].map((item) => ({
+      ...item,
+      change: item.latest - item.first,
+    }));
+
+    const improvedScores = scoreChanges.filter((item) => item.change > 0);
+    const declinedScores = scoreChanges.filter((item) => item.change < 0);
+
+    const symptomCountMap = new Map<string, number>();
+
+    selectedTrendStudents.forEach((student) => {
+      student.symptoms?.forEach((symptom) => {
+        symptomCountMap.set(symptom, (symptomCountMap.get(symptom) ?? 0) + 1);
+      });
+    });
+
+    const repeatedSymptoms = Array.from(symptomCountMap.entries())
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .map(([symptom, count]) => ({ symptom, count }));
+
+    const latestLowScores = scoreChanges.filter((item) => {
+      if (item.max === 10) {
+        return item.latest <= 4;
+      }
+
+      return item.latest <= 2;
+    });
+
+    return {
+      firstRecord,
+      latestRecord,
+      scoreChanges,
+      improvedScores,
+      declinedScores,
+      repeatedSymptoms,
+      latestLowScores,
+    };
+  }, [selectedTrendStudents]);
 
   const handleGallerySearch = () => {
     setAppliedGalleryName(galleryNameInput);
@@ -155,6 +246,24 @@ export const CoachDashboard: React.FC = () => {
     setAppliedGalleryName('');
     setAppliedGalleryStartDate('');
     setAppliedGalleryEndDate('');
+  };
+  const handleMemoSelectToggle = (id?: string) => {
+    if (!id) return;
+
+    setIsTrendVisible(false);
+
+    setSelectedMemoIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((selectedId) => selectedId !== id);
+      }
+
+      if (prev.length >= 3) {
+        alert('상담일지는 최대 3개까지 선택할 수 있습니다.');
+        return prev;
+      }
+
+      return [...prev, id];
+    });
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -178,6 +287,8 @@ export const CoachDashboard: React.FC = () => {
       }
 
       setStudents((prev) => prev.filter((r) => r.id !== id));
+      setSelectedMemoIds((prev) => prev.filter((selectedId) => selectedId !== id));
+      setIsTrendVisible(false);
       alert('상담일지가 삭제되었습니다.');
     } catch (error) {
       console.error('Failed to delete student:', error);
@@ -1422,6 +1533,337 @@ export const CoachDashboard: React.FC = () => {
             </button>
           </div>
 
+          <div
+            style={{
+              margin: '0.9rem 0',
+              padding: '0.85rem 1rem',
+              borderRadius: '16px',
+              background: selectedMemoIds.length > 0 ? '#faf5ff' : '#f8fafc',
+              border: selectedMemoIds.length > 0 ? '1px solid #ddd6fe' : '1px solid #e2e8f0',
+              color: selectedMemoIds.length > 0 ? '#6d28d9' : '#64748b',
+              fontSize: '0.86rem',
+              fontWeight: 850,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '0.8rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              선택된 상담일지 {selectedMemoIds.length}개 / 최대 3개
+              {selectedMemoIds.length < 2 && ' · 변화 추이를 보려면 상담일지 2개 이상을 선택해주세요.'}
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary btn-small"
+              disabled={selectedMemoIds.length < 2}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTrendVisible(true);
+              }}
+              style={{
+                minWidth: '120px',
+                height: '38px',
+                borderRadius: '14px',
+                fontSize: '0.82rem',
+                fontWeight: 900,
+                opacity: selectedMemoIds.length < 2 ? 0.45 : 1,
+                cursor: selectedMemoIds.length < 2 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              변화 추이 보기
+            </button>
+          </div>
+
+
+          {isTrendVisible && selectedTrendStudents.length >= 2 && selectedTrendSummary && (<div
+            style={{
+              margin: '1rem 0 1.2rem',
+              padding: '1.15rem',
+              borderRadius: '24px',
+              background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
+              border: '1.5px solid #ddd6fe',
+              boxShadow: '0 14px 32px rgba(124, 58, 237, 0.1)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '1rem',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+                marginBottom: '1rem',
+              }}
+            >
+              <div>
+                <h3
+                  style={{
+                    margin: 0,
+                    color: '#4c1d95',
+                    fontSize: '1.15rem',
+                    fontWeight: 950,
+                  }}
+                >
+                  📈 선택 상담일지 변화 추이
+                </h3>
+
+                <p
+                  style={{
+                    margin: '0.35rem 0 0',
+                    color: '#64748b',
+                    fontSize: '0.86rem',
+                    fontWeight: 750,
+                  }}
+                >
+                  선택한 상담일지 {selectedTrendStudents.length}개를 시간등록 순으로 정렬했습니다.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  padding: '0.55rem 0.8rem',
+                  borderRadius: '999px',
+                  background: '#ede9fe',
+                  color: '#6d28d9',
+                  fontSize: '0.78rem',
+                  fontWeight: 950,
+                }}
+              >
+                {getKoreanDate(selectedTrendSummary.firstRecord.createdAt)} →{' '}
+                {getKoreanDate(selectedTrendSummary.latestRecord.createdAt)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '0.75rem',
+                marginBottom: '1rem',
+              }}
+            >
+              {selectedTrendSummary.scoreChanges.map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    padding: '0.85rem',
+                    borderRadius: '18px',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 8px 18px rgba(15, 23, 42, 0.045)',
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      color: '#64748b',
+                      fontSize: '0.78rem',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {item.label}
+                  </p>
+
+                  <h4
+                    style={{
+                      margin: '0.35rem 0 0',
+                      color: item.change > 0 ? '#166534' : item.change < 0 ? '#be123c' : '#334155',
+                      fontSize: '1.05rem',
+                      fontWeight: 950,
+                    }}
+                  >
+                    {item.first}점 → {item.latest}점
+                  </h4>
+
+                  <p
+                    style={{
+                      margin: '0.25rem 0 0',
+                      color: '#94a3b8',
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
+                    }}
+                  >
+                    {item.change > 0
+                      ? `+${item.change}점 개선`
+                      : item.change < 0
+                        ? `${item.change}점 하락`
+                        : '변화 없음'}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '0.8rem',
+                marginBottom: '1rem',
+              }}
+            >
+              <div
+                style={{
+                  padding: '0.95rem',
+                  borderRadius: '18px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
+                  처음 상담과 최근 상담의 차이
+                </h4>
+
+                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                  유형: {selectedTrendSummary.firstRecord.speechType ?? '기록 부족'} →{' '}
+                  {selectedTrendSummary.latestRecord.speechType ?? '기록 부족'}
+                </p>
+
+                <p style={{ margin: '0.35rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                  점수 변화:{' '}
+                  {selectedTrendSummary.scoreChanges
+                    .map((item) => `${item.label} ${item.change > 0 ? '+' : ''}${item.change}`)
+                    .join(' / ')}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  padding: '0.95rem',
+                  borderRadius: '18px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
+                  개선된 점
+                </h4>
+
+                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                  {selectedTrendSummary.improvedScores.length > 0
+                    ? selectedTrendSummary.improvedScores
+                      .map((item) => `${item.label} +${item.change}점`)
+                      .join(', ')
+                    : '기록 부족'}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  padding: '0.95rem',
+                  borderRadius: '18px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
+                  반복적으로 나타난 문제
+                </h4>
+
+                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                  {selectedTrendSummary.repeatedSymptoms.length > 0
+                    ? selectedTrendSummary.repeatedSymptoms
+                      .slice(0, 5)
+                      .map((item) => `${item.symptom}(${item.count}회)`)
+                      .join(', ')
+                    : '기록 부족'}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  padding: '0.95rem',
+                  borderRadius: '18px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
+                  추가 관리가 필요한 점
+                </h4>
+
+                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                  {selectedTrendSummary.latestLowScores.length > 0
+                    ? selectedTrendSummary.latestLowScores
+                      .map((item) => `${item.label} 점수 낮음`)
+                      .join(', ')
+                    : selectedTrendSummary.repeatedSymptoms.length > 0
+                      ? '반복 문제 항목을 중심으로 추가 관리가 필요합니다.'
+                      : '기록 부족'}
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                gap: '0.8rem',
+              }}
+            >
+              {selectedTrendStudents.map((student, index) => (
+                <div
+                  key={student.id ?? `${student.name}-${student.createdAt}-${index}`}
+                  style={{
+                    padding: '0.9rem',
+                    borderRadius: '18px',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: '0.6rem',
+                      alignItems: 'center',
+                      marginBottom: '0.55rem',
+                    }}
+                  >
+                    <strong style={{ color: '#4c1d95', fontSize: '0.88rem' }}>
+                      {index + 1}차 상담
+                    </strong>
+
+                    <span style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 800 }}>
+                      {getKoreanDateTime(student.createdAt)}
+                    </span>
+                  </div>
+
+                  <p style={{ margin: '0.25rem 0', color: '#334155', fontSize: '0.84rem', fontWeight: 850 }}>
+                    학생: {student.name ?? '기록 부족'}
+                  </p>
+
+                  <p style={{ margin: '0.25rem 0', color: '#475569', fontSize: '0.8rem', fontWeight: 750 }}>
+                    유형: {student.speechType ?? '기록 부족'}
+                  </p>
+
+                  <p style={{ margin: '0.25rem 0', color: '#475569', fontSize: '0.8rem', fontWeight: 750 }}>
+                    점수: 내용 {student.scores?.contentAbility ?? '-'} / 표현{' '}
+                    {student.scores?.deliveryAbility ?? '-'} / 상호작용{' '}
+                    {student.scores?.interactionAbility ?? '-'}
+                  </p>
+
+                  <p style={{ margin: '0.4rem 0 0', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5, fontWeight: 700 }}>
+                    주요 고민:{' '}
+                    {student.memo?.pastDifficulty?.trim()
+                      ? student.memo.pastDifficulty
+                      : '기록 부족'}
+                  </p>
+
+                  <p style={{ margin: '0.3rem 0 0', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5, fontWeight: 700 }}>
+                    원하는 변화:{' '}
+                    {student.memo?.desiredState?.trim()
+                      ? student.memo.desiredState
+                      : '기록 부족'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
+
           {galleryFilteredStudents.length === 0 ? (
             <div className="empty-details text-center">
               <div className="empty-icon">📂</div>
@@ -1437,116 +1879,134 @@ export const CoachDashboard: React.FC = () => {
                 gap: '0.85rem',
               }}
             >
-              {galleryFilteredStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="memo-gallery-card"
-                  style={{
-                    border: '1px solid rgba(148, 163, 184, 0.35)',
-                    borderRadius: '16px',
-                    padding: '0.7rem',
-                    background: '#fff',
-                    boxShadow: '0 6px 16px rgba(15, 23, 42, 0.05)',
-                  }}
-                >
-                  <div style={{ marginBottom: '0.55rem' }}>
-                    <strong style={{ fontSize: '0.88rem' }}>{student.name}</strong>
+              {galleryFilteredStudents.map((student) => {
+                const isSelected = !!student.id && selectedMemoIds.includes(student.id);
 
-                    <div
-                      style={{
-                        marginTop: '0.25rem',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.7rem',
-                        color: '#64748b',
-                      }}
-                    >
-                      <span>{getKoreanDate(student.createdAt)}</span>
+                return (
+                  <div
+                    key={student.id}
+                    className="memo-gallery-card"
+                    onClick={() => handleMemoSelectToggle(student.id)}
+                    style={{
+                      position: 'relative',
+                      cursor: 'pointer',
+                      border: isSelected
+                        ? '2px solid #8b5cf6'
+                        : '1px solid rgba(148, 163, 184, 0.35)',
+                      borderRadius: '16px',
+                      padding: '0.7rem',
+                      background: isSelected ? '#faf5ff' : '#fff',
+                      boxShadow: isSelected
+                        ? '0 10px 24px rgba(139, 92, 246, 0.18)'
+                        : '0 6px 16px rgba(15, 23, 42, 0.05)',
+                    }}
+                  >
 
-                      <span
-                        className={`tag type-tag ${student.speechType}`}
-                        style={{ fontSize: '0.6rem', padding: '0.1rem 0.32rem' }}
-                      >
-                        {student.speechType}
-                      </span>
-                    </div>
-                  </div>
 
-                  {student.memoImageUrl ? (
-                    <>
-                      <a
-                        href={student.memoImageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: 'block' }}
-                      >
-                        <img
-                          src={student.memoImageUrl}
-                          alt={`${student.name} 상담일지 JPG`}
-                          className="dashboard-memo-img"
-                          style={{
-                            width: '100%',
-                            height: '140px',
-                            objectFit: 'cover',
-                            objectPosition: 'top',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(148, 163, 184, 0.25)',
-                            background: '#f8fafc',
-                          }}
-                        />
-                      </a>
+                    <div style={{ marginBottom: '0.55rem' }}>
+                      <strong style={{ fontSize: '0.88rem' }}>{student.name}</strong>
 
                       <div
                         style={{
+                          marginTop: '0.25rem',
                           display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
                           gap: '0.35rem',
-                          marginTop: '0.55rem',
+                          fontSize: '0.7rem',
+                          color: '#64748b',
                         }}
                       >
+                        <span>{getKoreanDate(student.createdAt)}</span>
+
+                        <span
+                          className={`tag type-tag ${student.speechType}`}
+                          style={{ fontSize: '0.6rem', padding: '0.1rem 0.32rem' }}
+                        >
+                          {student.speechType}
+                        </span>
+                      </div>
+                    </div>
+
+                    {student.memoImageUrl ? (
+                      <>
                         <a
                           href={student.memoImageUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="btn btn-secondary btn-small"
-                          style={{ flex: 1, textAlign: 'center', fontSize: '0.72rem' }}
+                          style={{ display: 'block' }}
                         >
-                          크게 보기
+                          <img
+                            src={student.memoImageUrl}
+                            alt={`${student.name} 상담일지 JPG`}
+                            className="dashboard-memo-img"
+                            style={{
+                              width: '100%',
+                              height: '140px',
+                              objectFit: 'cover',
+                              objectPosition: 'top',
+                              borderRadius: '12px',
+                              border: '1px solid rgba(148, 163, 184, 0.25)',
+                              background: '#f8fafc',
+                            }}
+                          />
                         </a>
 
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-small"
-                          disabled={isDeleting}
-                          onClick={() => student.id && handleDelete(student.id, student.name)}
-                          style={{ fontSize: '0.72rem' }}
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '0.35rem',
+                            marginTop: '0.55rem',
+                          }}
                         >
-                          삭제
-                        </button>
+                          <a
+                            href={student.memoImageUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-small"
+                            style={{ flex: 1, textAlign: 'center', fontSize: '0.72rem' }}
+                          >
+                            크게 보기
+                          </a>
+
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-small"
+                            disabled={isDeleting}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (student.id) {
+                                handleDelete(student.id, student.name);
+                              }
+                            }}
+                            style={{ fontSize: '0.72rem' }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          height: '140px',
+                          borderRadius: '12px',
+                          background: '#f8fafc',
+                          border: '1px dashed rgba(148, 163, 184, 0.65)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          color: '#64748b',
+                          padding: '0.75rem',
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        상담일지 이미지가 없습니다.
                       </div>
-                    </>
-                  ) : (
-                    <div
-                      style={{
-                        height: '140px',
-                        borderRadius: '12px',
-                        background: '#f8fafc',
-                        border: '1px dashed rgba(148, 163, 184, 0.65)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textAlign: 'center',
-                        color: '#64748b',
-                        padding: '0.75rem',
-                        fontSize: '0.78rem',
-                      }}
-                    >
-                      상담일지 이미지가 없습니다.
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
