@@ -3,7 +3,6 @@ import type { User } from 'firebase/auth';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signOut,
 } from 'firebase/auth';
 
 import { Header } from './components/Header';
@@ -127,20 +126,6 @@ function App() {
     }
   };
 
-  const handleLogout = async () => {
-    if (auth) {
-      await signOut(auth);
-    }
-
-    setUser(null);
-    setAppMode('select');
-    setCurrentTab('assessment');
-    setLoginEmail('');
-    setLoginPassword('');
-    setLoginError('');
-    setTeacherPassword('');
-    setTeacherLoginError('');
-  };
 
   const enterStudentMode = () => {
     setAppMode('student');
