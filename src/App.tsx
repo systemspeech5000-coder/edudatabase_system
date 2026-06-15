@@ -71,9 +71,16 @@ function App() {
     setLoginError('');
 
     try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      setAppMode('select');
-      setCurrentTab('assessment');
+      const loggedInUser = await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+
+      if (teacherUid && loggedInUser.user.uid === teacherUid) {
+        setAppMode('teacher');
+        setCurrentTab('dashboard');
+      } else {
+        setAppMode('student');
+        setCurrentTab('assessment');
+      }
+
     } catch (error: any) {
       console.error('로그인 실패 코드:', error.code);
       console.error('로그인 실패 메시지:', error.message);
