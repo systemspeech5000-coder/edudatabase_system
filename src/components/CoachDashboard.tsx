@@ -743,6 +743,7 @@ export const CoachDashboard: React.FC = () => {
     ];
 
     const lowestAbility = [...abilityRates].sort((a, b) => a.rate - b.rate)[0];
+    const topSpeechType = [...typeCounts].sort((a, b) => b.count - a.count)[0];
 
     return {
       totalCount,
@@ -755,6 +756,7 @@ export const CoachDashboard: React.FC = () => {
       groupedSymptomDistribution,
       topFiveSymptoms,
       lowestAbility,
+      topSpeechType,
     };
   }, [students]);
 
@@ -1020,65 +1022,92 @@ export const CoachDashboard: React.FC = () => {
     return (
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
-          gap: '0.7rem',
           margin: '0.9rem 0 1.4rem 0',
+          padding: '0.95rem 1rem',
+          borderRadius: '20px',
+          background: 'rgba(248, 250, 252, 0.82)',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 8px 18px rgba(15, 23, 42, 0.035)',
         }}
       >
-        {stats.typeCounts.map((item) => {
-          const meta = typeMeta[item.label];
+        {stats.topSpeechType && stats.topSpeechType.count > 0 && (
+          <div
+            style={{
+              marginBottom: '0.75rem',
+              color: '#64748b',
+              fontSize: '0.86rem',
+              fontWeight: 850,
+              textAlign: 'left',
+            }}
+          >
+            <strong style={{ color: '#4c1d95', fontWeight: 950 }}>
+              {stats.topSpeechType.label}
+            </strong>
+            이 가장 많습니다.
+          </div>
+        )}
 
-          return (
-            <div
-              key={item.label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.55rem',
-                background: meta.bg,
-                border: `1px solid ${meta.border}`,
-                borderRadius: '16px',
-                padding: '0.65rem 0.75rem',
-                opacity: 0.82,
-              }}
-            >
-              <span
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+            gap: '0.7rem',
+          }}
+        >
+          {stats.typeCounts.map((item) => {
+            const meta = typeMeta[item.label];
+
+            return (
+              <div
+                key={item.label}
                 style={{
-                  fontSize: '1.45rem',
-                  lineHeight: 1,
-                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  background: meta.bg,
+                  border: `1px solid ${meta.border}`,
+                  borderRadius: '16px',
+                  padding: '0.65rem 0.75rem',
+                  opacity: 0.82,
                 }}
               >
-                {meta.emoji}
-              </span>
-
-              <div style={{ minWidth: 0 }}>
-                <div
+                <span
                   style={{
-                    color: meta.color,
-                    fontSize: '0.78rem',
-                    fontWeight: 900,
-                    lineHeight: 1.2,
+                    fontSize: '1.45rem',
+                    lineHeight: 1,
+                    flexShrink: 0,
                   }}
                 >
-                  {item.label}
-                </div>
+                  {meta.emoji}
+                </span>
 
-                <div
-                  style={{
-                    color: '#64748b',
-                    fontSize: '0.67rem',
-                    fontWeight: 700,
-                    marginTop: '0.12rem',
-                  }}
-                >
-                  {item.count}명
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: meta.color,
+                      fontSize: '0.78rem',
+                      fontWeight: 900,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+
+                  <div
+                    style={{
+                      color: '#64748b',
+                      fontSize: '0.67rem',
+                      fontWeight: 700,
+                      marginTop: '0.12rem',
+                    }}
+                  >
+                    {item.count}명
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     );
   };
@@ -2904,9 +2933,9 @@ export const CoachDashboard: React.FC = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 280px))',
               gap: '1rem',
-              width: '100%',
+              justifyContent: 'flex-start',
             }}
           >
             {filteredSpeechProgressReports.map((report) => (
