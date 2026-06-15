@@ -12,6 +12,7 @@ import {
 
 const STORAGE_KEY = 'voxmonitor_finance_records';
 const DEFAULT_INCOME_DESCRIPTION = '컨설팅 자문비';
+const DEFAULT_INCOME_MINOR_CATEGORY = '매출';
 
 const expenseMinorCategoryOptions = [
     '임차료',
@@ -195,6 +196,7 @@ export const FinanceDashboard: React.FC = () => {
                         return {
                             ...record,
                             majorCategory: '수입',
+                            minorCategory: record.minorCategory?.trim() || DEFAULT_INCOME_MINOR_CATEGORY,
                             supplyAmount,
                             vat,
                             netProfit: supplyAmount - vat,
@@ -411,7 +413,7 @@ export const FinanceDashboard: React.FC = () => {
             type: 'income',
             date: `${selectedMonth}-01`,
             majorCategory: '수입',
-            minorCategory: '',
+            minorCategory: DEFAULT_INCOME_MINOR_CATEGORY,
             description: DEFAULT_INCOME_DESCRIPTION,
             partnerName: '',
             supplyAmount: 0,
