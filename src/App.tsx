@@ -476,7 +476,8 @@ function App() {
           style={{
             width: '100%',
             maxWidth: '900px',
-            padding: '2.15rem 2.4rem',
+            minHeight: '360px',
+            padding: '2.75rem 2.8rem',
             textAlign: 'center',
             borderRadius: '34px',
             background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -643,7 +644,8 @@ function App() {
           style={{
             width: '100%',
             maxWidth: '900px',
-            padding: '2.15rem 2.4rem',
+            minHeight: '360px',
+            padding: '2.75rem 2.8rem',
             textAlign: 'center',
             borderRadius: '34px',
             background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -805,23 +807,6 @@ function App() {
               </p>
             )}
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                border: 'none',
-                background: 'rgba(255, 255, 255, 0.75)',
-                color: '#64748b',
-                fontSize: '1rem',
-                fontWeight: 850,
-                padding: '0.85rem 1.35rem',
-                borderRadius: '999px',
-                cursor: 'pointer',
-                boxShadow: '0 8px 18px rgba(15, 23, 42, 0.06)',
-              }}
-            >
-              로그아웃
-            </button>
           </div>
         </div>
       </div>
