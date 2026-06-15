@@ -27,12 +27,9 @@ const formatPhoneNumber = (value: string) => {
   return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`;
 };
 
-const formatBirthDate = (value: string) => {
-  const numbers = value.replace(/\D/g, '').slice(0, 8);
-
-  if (numbers.length <= 4) return numbers;
-  if (numbers.length <= 6) return `${numbers.slice(0, 4)}-${numbers.slice(4)}`;
-  return `${numbers.slice(0, 4)}-${numbers.slice(4, 6)}-${numbers.slice(6)}`;
+type ExtendedStudentInfo = Omit<StudentInfo, 'birthDate'> & {
+  gender: string;
+  age: string;
 };
 
 export const StudentAssessment: React.FC = () => {
@@ -44,9 +41,10 @@ export const StudentAssessment: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState('');
   const [submittedRecord, setSubmittedRecord] = useState<StudentRecord | null>(null);
 
-  const [info, setInfo] = useState<StudentInfo>({
+  const [info, setInfo] = useState<ExtendedStudentInfo>({
     address: '',
-    birthDate: '',
+    gender: '',
+    age: '',
     visitRoute: '',
     contact: '',
     email: '',
@@ -93,10 +91,6 @@ export const StudentAssessment: React.FC = () => {
 
     if (name === 'contact') {
       nextValue = formatPhoneNumber(value);
-    }
-
-    if (name === 'birthDate') {
-      nextValue = formatBirthDate(value);
     }
 
     setInfo((prev) => ({ ...prev, [name]: nextValue }));
@@ -158,7 +152,8 @@ export const StudentAssessment: React.FC = () => {
     if (currentStep === 1) {
       return (
         info.address.trim() &&
-        info.birthDate &&
+        info.gender &&
+        info.age &&
         info.contact.trim() &&
         info.email.trim() &&
         info.visitRoute
@@ -232,8 +227,10 @@ export const StudentAssessment: React.FC = () => {
         });
       }
 
-      const record: StudentRecord = {
+      const record = {
         name: studentName,
+        gender: info.gender,
+        age: info.age,
         info,
         symptoms,
         speechType,
@@ -241,7 +238,7 @@ export const StudentAssessment: React.FC = () => {
         memo,
         memoImageUrl: imageUrl,
         createdAt: now.toISOString(),
-      };
+      } as StudentRecord & { gender: string; age: string };
 
       if (isFirebaseConfigured && db) {
         setUploadProgress('Firestore에 수강생 진단결과 등록 중...');
@@ -275,7 +272,7 @@ export const StudentAssessment: React.FC = () => {
     setSpeechType('주도형');
     setScores({ contentAbility: 3, deliveryAbility: 5, interactionAbility: 3 });
     setMemo({ pastDifficulty: '', futureWorry: '', desiredState: '' });
-    setInfo({ address: '', birthDate: '', visitRoute: '', contact: '', email: '' });
+    setInfo({ address: '', gender: '', age: '', visitRoute: '', contact: '', email: '' });
     setEmailId('');
     setEmailDomain('@gmail.com');
     setCustomEmailDomain('');
@@ -582,7 +579,12 @@ export const StudentAssessment: React.FC = () => {
 
         {currentStep === 1 && (
           <div className="step-body animate-slide-up">
-            <div className="form-grid">
+            <div
+              className="form-grid"
+              style={{
+                gridTemplateColumns: 'minmax(220px, 4fr) minmax(0, 6fr)',
+              }}
+            >
               <div className="input-group">
                 <label>연락처 *</label>
                 <input
@@ -639,18 +641,26 @@ export const StudentAssessment: React.FC = () => {
 
 
               <div className="input-group">
-                <label>생년월일 (8자리 입력) *</label>
-                <input
-                  type="text"
-                  name="birthDate"
-                  inputMode="numeric"
-                  placeholder="예: 19890923"
-                  value={info.birthDate}
-                  onChange={handleInfoChange}
-                  maxLength={10}
-                  required
-                />
+                <label>성별 *</label>
+                <select name="gender" value={info.gender} onChange={handleInfoChange} required>
+                  <option value="">성별을 선택해주세요</option>
+                  <option value="여자">여자</option>
+                  <option value="남자">남자</option>
+                </select>
+              </div>
 
+              <div className="input-group">
+                <label>나이 *</label>
+                <select name="age" value={info.age} onChange={handleInfoChange} required>
+                  <option value="">나이를 선택해주세요</option>
+                  <option value="10대">10대</option>
+                  <option value="20대">20대</option>
+                  <option value="30대">30대</option>
+                  <option value="40대">40대</option>
+                  <option value="50대">50대</option>
+                  <option value="60대">60대</option>
+                  <option value="70대">70대</option>
+                </select>
               </div>
 
               <div className="input-group">
@@ -669,8 +679,8 @@ export const StudentAssessment: React.FC = () => {
 
               </div>
 
-              <div className="input-group full-width">
-                <label>주소(동까지만 쓰셔도 되요) *</label>
+              <div className="input-group">
+                <label>주소(도로명이나 동까지) *</label>
 
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input
@@ -680,7 +690,7 @@ export const StudentAssessment: React.FC = () => {
                     value={info.address}
                     onChange={handleInfoChange}
                     required
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 0 }}
                   />
 
                   <button
@@ -963,8 +973,12 @@ export const StudentAssessment: React.FC = () => {
                       <td>{info.email}</td>
                     </tr>
                     <tr>
-                      <th>생년월일</th>
-                      <td>{info.birthDate}</td>
+                      <th>성별</th>
+                      <td>{info.gender}</td>
+                    </tr>
+                    <tr>
+                      <th>나이</th>
+                      <td>{info.age}</td>
                     </tr>
                     <tr>
                       <th>방문 경로</th>

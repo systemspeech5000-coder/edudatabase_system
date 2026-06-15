@@ -69,6 +69,114 @@ const truncateText = (text: string, maxLength = 7) => {
   return `${text.slice(0, maxLength)}…`;
 };
 
+const getNestedValue = (source: any, paths: string[]) => {
+  for (const path of paths) {
+    const value = path.split('.').reduce((current, key) => current?.[key], source);
+
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const normalizeGender = (value: any): '여자' | '남자' | null => {
+  if (value === undefined || value === null) return null;
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (['여자', '여성', 'female', 'f'].includes(normalized)) {
+    return '여자';
+  }
+
+  if (['남자', '남성', 'male', 'm'].includes(normalized)) {
+    return '남자';
+  }
+
+  return null;
+};
+
+const getNumberFromValue = (value: any) => {
+  if (value === undefined || value === null || value === '') return null;
+
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return value;
+  }
+
+  const matched = String(value).match(/\d+/);
+  if (!matched) return null;
+
+  const parsed = Number(matched[0]);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const getAgeAtRecordTime = (student: StudentRecord) => {
+  const studentAny = student as any;
+  const recordDate = getDateObject(student.createdAt) ?? new Date();
+
+  const ageValue = getNestedValue(studentAny, ['age', 'info.age', 'basicInfo.age', 'profile.age']);
+  const directAge = getNumberFromValue(ageValue);
+
+  if (directAge !== null && directAge >= 0) {
+    return directAge;
+  }
+
+  const birthYearValue = getNestedValue(studentAny, [
+    'birthYear',
+    'info.birthYear',
+    'basicInfo.birthYear',
+    'profile.birthYear',
+  ]);
+
+  const birthYear = getNumberFromValue(birthYearValue);
+
+  if (birthYear !== null && birthYear > 1900) {
+    return recordDate.getFullYear() - birthYear;
+  }
+
+  const birthDateValue = getNestedValue(studentAny, [
+    'birthDate',
+    'info.birthDate',
+    'basicInfo.birthDate',
+    'profile.birthDate',
+  ]);
+
+  const birthDate = getDateObject(birthDateValue);
+
+  if (birthDate) {
+    let age = recordDate.getFullYear() - birthDate.getFullYear();
+
+    const birthdayThisYear = new Date(
+      recordDate.getFullYear(),
+      birthDate.getMonth(),
+      birthDate.getDate()
+    );
+
+    if (recordDate < birthdayThisYear) {
+      age -= 1;
+    }
+
+    return age;
+  }
+
+  return null;
+};
+
+const getAgeGroupLabel = (age: number | null) => {
+  if (age === null) return null;
+
+  if (age >= 10 && age <= 19) return '10대';
+  if (age >= 20 && age <= 29) return '20대';
+  if (age >= 30 && age <= 39) return '30대';
+  if (age >= 40 && age <= 49) return '40대';
+  if (age >= 50 && age <= 59) return '50대';
+  if (age >= 60 && age <= 69) return '60대';
+  if (age >= 70 && age <= 79) return '70대';
+
+  return null;
+};
+
 export const CoachDashboard: React.FC = () => {
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -516,6 +624,47 @@ export const CoachDashboard: React.FC = () => {
       };
     });
 
+    const femaleCount = students.filter((student) => {
+      const studentAny = student as any;
+
+      const gender = normalizeGender(
+        getNestedValue(studentAny, ['gender', 'sex', 'info.gender', 'basicInfo.gender', 'profile.gender'])
+      );
+
+      return gender === '여자';
+    }).length;
+
+    const maleCount = students.filter((student) => {
+      const studentAny = student as any;
+
+      const gender = normalizeGender(
+        getNestedValue(studentAny, ['gender', 'sex', 'info.gender', 'basicInfo.gender', 'profile.gender'])
+      );
+
+      return gender === '남자';
+    }).length;
+
+    const genderStats = [
+      { label: '여자', count: femaleCount },
+      { label: '남자', count: maleCount },
+    ];
+
+    const ageGroupLabels = ['10대', '20대', '30대', '40대', '50대', '60대', '70대'];
+
+    const ageGroupStats = ageGroupLabels.map((label) => {
+      const count = students.filter((student) => {
+        const age = getAgeAtRecordTime(student);
+        const ageGroupLabel = getAgeGroupLabel(age);
+
+        return ageGroupLabel === label;
+      }).length;
+
+      return {
+        label,
+        count,
+      };
+    });
+
     const averageContent =
       totalCount > 0
         ? students.reduce((sum, s) => sum + (s.scores?.contentAbility ?? 0), 0) / totalCount
@@ -598,6 +747,8 @@ export const CoachDashboard: React.FC = () => {
     return {
       totalCount,
       typeCounts,
+      genderStats,
+      ageGroupStats,
       averageContent,
       averageDelivery,
       averageInteraction,
@@ -606,6 +757,224 @@ export const CoachDashboard: React.FC = () => {
       lowestAbility,
     };
   }, [students]);
+
+  const renderDemographicSummary = () => {
+    const genderTotal = stats.genderStats.reduce((sum, item) => sum + item.count, 0);
+    const ageTotal = stats.ageGroupStats.reduce((sum, item) => sum + item.count, 0);
+
+    const hasGenderData = genderTotal > 0;
+    const hasAgeData = ageTotal > 0;
+
+    const sortedGenderStats = [...stats.genderStats].sort((a, b) => b.count - a.count);
+    const topGender = sortedGenderStats[0];
+    const secondGender = sortedGenderStats[1];
+
+    const genderSummaryText = hasGenderData
+      ? secondGender && topGender.count === secondGender.count
+        ? `${topGender.label}와 ${secondGender.label}가 같습니다.`
+        : `${topGender.label}가 더 많습니다.`
+      : '성별 정보가 아직 부족합니다.';
+
+    const sortedAgeGroupStats = [...stats.ageGroupStats]
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+    const firstAgeGroup = sortedAgeGroupStats[0];
+    const secondAgeGroup = sortedAgeGroupStats[1];
+
+    const ageSummaryText = hasAgeData
+      ? firstAgeGroup && secondAgeGroup
+        ? `${firstAgeGroup.label}와 ${secondAgeGroup.label}가 가장 많습니다.`
+        : `${firstAgeGroup?.label ?? '-'}가 가장 많습니다.`
+      : '나이대 정보가 아직 부족합니다.';
+
+    if (!hasGenderData && !hasAgeData) {
+      return (
+        <div
+          style={{
+            margin: '0.8rem 0 1rem 0',
+            padding: '0.85rem 1rem',
+            borderRadius: '20px',
+            border: '1px solid #e2e8f0',
+            background: 'rgba(248, 250, 252, 0.78)',
+            color: '#94a3b8',
+            fontSize: '0.82rem',
+            fontWeight: 750,
+            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.035)',
+          }}
+        >
+          👥 성별/나이 정보가 아직 부족합니다.
+        </div>
+      );
+    }
+
+    const pillStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.25rem',
+      padding: '0.34rem 0.62rem',
+      borderRadius: '999px',
+      background: '#ffffff',
+      border: '1px solid #e2e8f0',
+      color: '#64748b',
+      fontSize: '0.76rem',
+      fontWeight: 850,
+      boxShadow: '0 4px 10px rgba(15, 23, 42, 0.035)',
+      whiteSpace: 'nowrap',
+    };
+
+    const countStyle: React.CSSProperties = {
+      color: '#475569',
+      fontWeight: 950,
+    };
+
+    return (
+      <div
+        style={{
+          margin: '0.8rem 0 1rem 0',
+          padding: '0.9rem 1rem',
+          borderRadius: '20px',
+          border: '1px solid #e2e8f0',
+          background: 'rgba(248, 250, 252, 0.78)',
+          boxShadow: '0 8px 18px rgba(15, 23, 42, 0.035)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.8rem',
+            flexWrap: 'wrap',
+            marginBottom: '0.65rem',
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              color: '#64748b',
+              fontSize: '0.9rem',
+              fontWeight: 900,
+            }}
+          >
+            👥 성별 · 나이대 요약
+          </h3>
+
+          <span
+            style={{
+              color: '#94a3b8',
+              fontSize: '0.74rem',
+              fontWeight: 750,
+            }}
+          >
+            부연 통계
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(180px, 0.8fr) minmax(260px, 1.6fr)',
+            gap: '0.75rem',
+            alignItems: 'start',
+          }}
+        >
+          <div
+            style={{
+              padding: '0.7rem',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.68)',
+              border: '1px solid rgba(226, 232, 240, 0.85)',
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 0.25rem 0',
+                color: '#94a3b8',
+                fontSize: '0.74rem',
+                fontWeight: 900,
+              }}
+            >
+              성별
+            </p>
+
+            <p
+              style={{
+                margin: '0 0 0.55rem 0',
+                color: '#64748b',
+                fontSize: '0.8rem',
+                fontWeight: 850,
+                lineHeight: 1.45,
+              }}
+            >
+              {genderSummaryText}
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.45rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              {stats.genderStats.map((item) => (
+                <span key={item.label} style={pillStyle}>
+                  {item.label}
+                  <strong style={countStyle}>{item.count}명</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '0.7rem',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.68)',
+              border: '1px solid rgba(226, 232, 240, 0.85)',
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 0.25rem 0',
+                color: '#94a3b8',
+                fontSize: '0.74rem',
+                fontWeight: 900,
+              }}
+            >
+              나이대
+            </p>
+
+            <p
+              style={{
+                margin: '0 0 0.55rem 0',
+                color: '#64748b',
+                fontSize: '0.8rem',
+                fontWeight: 850,
+                lineHeight: 1.45,
+              }}
+            >
+              {ageSummaryText}
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: '0.45rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              {stats.ageGroupStats.map((item) => (
+                <span key={item.label} style={pillStyle}>
+                  {item.label}
+                  <strong style={countStyle}>{item.count}명</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderSmallSpeechTypeRow = () => {
     const typeMeta: Record<
@@ -1447,6 +1816,8 @@ export const CoachDashboard: React.FC = () => {
           </div>
         ) : (
           <>
+            {renderDemographicSummary()}
+
             {renderSmallSpeechTypeRow()}
 
             <div

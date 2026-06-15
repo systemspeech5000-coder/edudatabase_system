@@ -102,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onLogout}
           style={{ marginLeft: '0.5rem' }}
         >
-          로그아웃
+          {isTeacherMode ? '로그아웃' : '처음으로'}
         </button>
       </div>
     </header>
