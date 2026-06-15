@@ -11,6 +11,7 @@ import {
 } from '../services/financeStorage';
 
 const STORAGE_KEY = 'voxmonitor_finance_records';
+const DEFAULT_INCOME_DESCRIPTION = '컨설팅 자문비';
 
 const expenseMinorCategoryOptions = [
     '임차료',
@@ -57,7 +58,11 @@ const createId = () => {
 };
 
 const toNumber = (value: string) => {
-    const onlyNumber = value.replace(/,/g, '');
+    const normalizedValue = value.replace(/[０-９]/g, (char) =>
+        String.fromCharCode(char.charCodeAt(0) - 0xfee0)
+    );
+
+    const onlyNumber = normalizedValue.replace(/[^0-9]/g, '');
 
     if (onlyNumber === '') return 0;
 
@@ -407,7 +412,7 @@ export const FinanceDashboard: React.FC = () => {
             date: `${selectedMonth}-01`,
             majorCategory: '수입',
             minorCategory: '',
-            description: '',
+            description: DEFAULT_INCOME_DESCRIPTION,
             partnerName: '',
             supplyAmount: 0,
             vat: 0,
@@ -466,7 +471,7 @@ export const FinanceDashboard: React.FC = () => {
                     field === 'supplyAmount' ? numberValue : record.supplyAmount;
 
                 const nextVat =
-                    field === 'vat' ? numberValue : record.vat;
+                    field === 'supplyAmount' ? Math.round(numberValue / 10) : numberValue;
 
                 return {
                     ...record,
@@ -478,6 +483,45 @@ export const FinanceDashboard: React.FC = () => {
             })
         );
     };
+
+
+    const getMissingRequiredFields = () => {
+        const missingMessages: string[] = [];
+
+        expenseRecords.forEach((record, index) => {
+            const missingFields: string[] = [];
+
+            if (!record.date.trim()) missingFields.push('날짜');
+            if (!record.minorCategory.trim()) missingFields.push('계정과목_소');
+            if (!record.description.trim()) missingFields.push('거래내용');
+            if (!record.partnerName.trim()) missingFields.push('거래처');
+            if (record.supplyAmount <= 0) missingFields.push('공급가액');
+            if (!record.note.trim()) missingFields.push('처리방법');
+
+            if (missingFields.length > 0) {
+                missingMessages.push(`🍑 비용 입력표 ${index + 1}번 행: ${missingFields.join(', ')}`);
+            }
+        });
+
+        incomeRecords.forEach((record, index) => {
+            const missingFields: string[] = [];
+
+            if (!record.date.trim()) missingFields.push('날짜');
+            if (!record.minorCategory.trim()) missingFields.push('계정과목_소');
+            if (!record.description.trim()) missingFields.push('거래내용');
+            if (!record.partnerName.trim()) missingFields.push('거래처');
+            if (record.supplyAmount <= 0) missingFields.push('공급가액');
+            if (record.netProfit === 0) missingFields.push('순이익');
+            if (!record.note.trim()) missingFields.push('처리방법');
+
+            if (missingFields.length > 0) {
+                missingMessages.push(`🌿 수입 입력표 ${index + 1}번 행: ${missingFields.join(', ')}`);
+            }
+        });
+
+        return missingMessages;
+    };
+
 
     const deleteRecord = (id: string) => {
         setRecords((prev) => prev.filter((record) => record.id !== id));
@@ -550,6 +594,20 @@ export const FinanceDashboard: React.FC = () => {
     };
 
     const handleSaveToFirebase = async () => {
+        if (monthlyRecords.length === 0) {
+            setSaveMessage('🐣 아직 저장할 내역이 없어요! 비용 입력표나 수입 입력표에 먼저 한 줄을 추가해 주세요 💌');
+            return;
+        }
+
+        const missingRequiredFields = getMissingRequiredFields();
+
+        if (missingRequiredFields.length > 0) {
+            setSaveMessage(
+                ['🐥 앗, 아직 채워야 할 칸이 있어요!', ...missingRequiredFields, '이 칸들만 채워주면 바로 저장할게요 💌'].join('\n')
+            );
+            return;
+        }
+
         if (!reportRef.current) {
             setSaveMessage('저장할 화면을 찾지 못했습니다.');
             return;
@@ -724,13 +782,17 @@ export const FinanceDashboard: React.FC = () => {
     };
 
     const gallerySearchButtonStyle: React.CSSProperties = {
-        border: '1px solid #e2e8f0',
-        borderRadius: '999px',
-        padding: '0.58rem 0.9rem',
+        height: '44px',
+        border: '1.5px solid #cbd5e1',
+        borderRadius: '15px',
+        padding: '0 1rem',
         background: '#f8fafc',
         color: '#64748b',
-        fontWeight: 900,
+        fontSize: '0.9rem',
+        fontWeight: 950,
         cursor: 'pointer',
+        boxShadow: '0 6px 14px rgba(15, 23, 42, 0.05)',
+        whiteSpace: 'nowrap',
     };
 
     const tableStyle: React.CSSProperties = {
@@ -789,10 +851,11 @@ export const FinanceDashboard: React.FC = () => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.65rem',
-                            padding: '0.65rem 0.9rem',
-                            borderRadius: '18px',
-                            background: '#ffffff',
-                            border: '1px solid #e2e8f0',
+                            padding: '0.78rem 0.9rem',
+                            borderRadius: '20px',
+                            background: '#f8fafc',
+                            border: '1.5px solid #e2e8f0',
+                            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
                         }}
                     >
                         <label
@@ -813,17 +876,18 @@ export const FinanceDashboard: React.FC = () => {
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value || getCurrentMonth())}
                             style={{
-                                width: '150px',
-                                minWidth: '150px',
-                                height: '38px',
-                                borderRadius: '12px',
+                                width: '165px',
+                                minWidth: '165px',
+                                height: '44px',
+                                borderRadius: '15px',
                                 border: '1.5px solid #cbd5e1',
                                 background: '#ffffff',
-                                padding: '0 0.5rem',
+                                padding: '0 0.9rem',
                                 color: '#334155',
                                 fontSize: '0.94rem',
                                 fontWeight: 850,
                                 outline: 'none',
+                                boxShadow: '0 6px 14px rgba(15, 23, 42, 0.04)',
                             }}
                         />
                     </div>
@@ -1009,6 +1073,7 @@ export const FinanceDashboard: React.FC = () => {
                                                     onChange={(e) => updateExpenseAmount(record.id, e.target.value)}
                                                     style={numberInputStyle}
                                                 />
+
                                             </td>
 
                                             <td style={tdStyle}>
@@ -1150,11 +1215,12 @@ export const FinanceDashboard: React.FC = () => {
                                             <td style={tdStyle}>
                                                 <input
                                                     value={record.description}
+
+
                                                     onChange={(e) => updateTextField(record.id, 'description', e.target.value)}
                                                     style={baseInputStyle}
                                                 />
                                             </td>
-
                                             <td style={tdStyle}>
                                                 <input
                                                     value={record.partnerName}
@@ -1173,6 +1239,7 @@ export const FinanceDashboard: React.FC = () => {
                                                     }
                                                     style={numberInputStyle}
                                                 />
+
                                             </td>
 
                                             <td style={tdStyle}>
@@ -1180,9 +1247,11 @@ export const FinanceDashboard: React.FC = () => {
                                                     type="text"
                                                     inputMode="numeric"
                                                     value={formatMoneyInput(record.vat)}
+                                                    onFocus={() => updateIncomeNumber(record.id, 'vat', '')}
                                                     onChange={(e) => updateIncomeNumber(record.id, 'vat', e.target.value)}
                                                     style={numberInputStyle}
                                                 />
+
                                             </td>
 
                                             <td style={tdStyle}>
@@ -1235,8 +1304,9 @@ export const FinanceDashboard: React.FC = () => {
             <div
                 style={{
                     display: 'flex',
+                    flexDirection: 'column',
                     justifyContent: 'flex-end',
-                    alignItems: 'center',
+                    alignItems: 'flex-end',
                     margin: '0.2rem 0 1.4rem',
                 }}
             >
@@ -1254,6 +1324,46 @@ export const FinanceDashboard: React.FC = () => {
                 >
                     {isSaving ? '저장 중...' : '저장하기'}
                 </button>
+
+                {saveMessage && (
+                    <div
+                        style={{
+                            position: 'relative',
+                            marginTop: '0.85rem',
+                            maxWidth: '520px',
+                            padding: '0.95rem 1.05rem',
+                            borderRadius: '20px',
+                            background: saveMessage.includes('채워야 할 칸')
+                                ? 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%)'
+                                : 'linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)',
+                            border: saveMessage.includes('채워야 할 칸')
+                                ? '1.5px solid #fecdd3'
+                                : '1.5px solid #c7d2fe',
+                            color: saveMessage.includes('채워야 할 칸') ? '#be123c' : '#334155',
+                            fontSize: '0.92rem',
+                            fontWeight: 950,
+                            lineHeight: 1.55,
+                            whiteSpace: 'pre-line',
+                            textAlign: 'left',
+                            boxShadow: '0 10px 22px rgba(190, 18, 60, 0.10)',
+                        }}
+                    >
+                        <span
+                            style={{
+                                position: 'absolute',
+                                top: '-8px',
+                                right: '34px',
+                                width: '16px',
+                                height: '16px',
+                                transform: 'rotate(45deg)',
+                                background: saveMessage.includes('채워야 할 칸') ? '#fff7ed' : '#f8fafc',
+                                borderLeft: saveMessage.includes('채워야 할 칸') ? '1.5px solid #fecdd3' : '1.5px solid #c7d2fe',
+                                borderTop: saveMessage.includes('채워야 할 칸') ? '1.5px solid #fecdd3' : '1.5px solid #c7d2fe',
+                            }}
+                        />
+                        {saveMessage}
+                    </div>
+                )}
             </div>
             <div
                 className="card"
@@ -1288,13 +1398,14 @@ export const FinanceDashboard: React.FC = () => {
                     <div
                         style={{
                             display: 'flex',
-                            gap: '0.6rem',
+                            gap: '0.65rem',
                             alignItems: 'center',
                             flexWrap: 'wrap',
-                            padding: '0.75rem',
-                            borderRadius: '18px',
+                            padding: '0.78rem 0.9rem',
+                            borderRadius: '20px',
                             background: '#f8fafc',
-                            border: '1px solid #e2e8f0',
+                            border: '1.5px solid #e2e8f0',
+                            boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
                         }}
                     >
                         <label
@@ -1312,15 +1423,18 @@ export const FinanceDashboard: React.FC = () => {
                             value={statsStartMonth}
                             onChange={(e) => setStatsStartMonth(e.target.value)}
                             style={{
-                                width: '145px',
-                                height: '38px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '999px',
-                                padding: '0 0.8rem',
+                                width: '165px',
+                                minWidth: '165px',
+                                height: '44px',
+                                border: '1.5px solid #cbd5e1',
+                                borderRadius: '15px',
+                                padding: '0 0.9rem',
                                 color: '#334155',
+                                fontSize: '0.94rem',
                                 fontWeight: 850,
                                 background: '#ffffff',
                                 outline: 'none',
+                                boxShadow: '0 6px 14px rgba(15, 23, 42, 0.04)',
                             }}
                         />
 
@@ -1331,15 +1445,18 @@ export const FinanceDashboard: React.FC = () => {
                             value={statsEndMonth}
                             onChange={(e) => setStatsEndMonth(e.target.value)}
                             style={{
-                                width: '145px',
-                                height: '38px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '999px',
-                                padding: '0 0.8rem',
+                                width: '165px',
+                                minWidth: '165px',
+                                height: '44px',
+                                border: '1.5px solid #cbd5e1',
+                                borderRadius: '15px',
+                                padding: '0 0.9rem',
                                 color: '#334155',
+                                fontSize: '0.94rem',
                                 fontWeight: 850,
                                 background: '#ffffff',
                                 outline: 'none',
+                                boxShadow: '0 6px 14px rgba(15, 23, 42, 0.04)',
                             }}
                         />
 
@@ -1347,14 +1464,16 @@ export const FinanceDashboard: React.FC = () => {
                             type="button"
                             onClick={handleStatsSearch}
                             style={{
-                                border: '1px solid #bfdbfe',
-                                borderRadius: '999px',
-                                padding: '0.58rem 1rem',
-                                background: 'linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%)',
-                                color: '#1d4ed8',
+                                height: '44px',
+                                border: '1.5px solid #fed7aa',
+                                borderRadius: '15px',
+                                padding: '0 1.15rem',
+                                background: '#fff7ed',
+                                color: '#9a3412',
+                                fontSize: '0.92rem',
                                 fontWeight: 950,
                                 cursor: 'pointer',
-                                boxShadow: '0 6px 14px rgba(37, 99, 235, 0.08)',
+                                boxShadow: '0 6px 14px rgba(234, 88, 12, 0.08)',
                             }}
                         >
                             검색
@@ -1854,6 +1973,7 @@ export const FinanceDashboard: React.FC = () => {
                     border: '1.5px solid #e2e8f0',
                     boxShadow: '0 14px 32px rgba(15, 23, 42, 0.06)',
                     padding: '1.25rem',
+                    overflow: 'hidden',
                 }}
             >
                 <div
@@ -1869,8 +1989,8 @@ export const FinanceDashboard: React.FC = () => {
 
 
                     <div>
-                        <h3 style={{ margin: 0, color: '#334155', fontSize: '1.15rem' }}>
-                            비용 및 내역 보기
+                        <h3 style={{ margin: 0, color: '#334155', fontSize: '1.15rem', fontWeight: 950 }}>
+                            비용 및 수입 내역 보기
                         </h3>
                         <p style={{ margin: '0.35rem 0 0', color: '#64748b', fontSize: '0.9rem', fontWeight: 700 }}>
                             저장 버튼을 누르면 현재 월의 내역이 JPG 이미지로 저장됩니다.
@@ -1881,15 +2001,20 @@ export const FinanceDashboard: React.FC = () => {
 
                 <div
                     style={{
-                        marginTop: '1rem',
+                        marginTop: '1.05rem',
+                        marginLeft: 'auto',
                         display: 'flex',
-                        gap: '0.6rem',
+                        gap: '0.65rem',
                         alignItems: 'center',
+                        justifyContent: 'flex-end',
                         flexWrap: 'wrap',
-                        padding: '0.85rem',
-                        borderRadius: '18px',
+                        padding: '0.78rem 0.9rem',
+                        borderRadius: '20px',
                         background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
+                        border: '1.5px solid #e2e8f0',
+                        boxShadow: '0 8px 18px rgba(15, 23, 42, 0.04)',
+                        width: 'fit-content',
+                        maxWidth: '100%',
                     }}
                 >
                     <label
@@ -1898,6 +2023,7 @@ export const FinanceDashboard: React.FC = () => {
                             color: '#475569',
                             fontSize: '0.9rem',
                             fontWeight: 950,
+                            whiteSpace: 'nowrap',
                         }}
                     >
                         월별 검색
@@ -1909,16 +2035,18 @@ export const FinanceDashboard: React.FC = () => {
                         value={gallerySearchMonth}
                         onChange={(e) => setGallerySearchMonth(e.target.value)}
                         style={{
-                            width: '150px',
-                            minWidth: '150px',
-                            height: '38px',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '999px',
+                            width: '165px',
+                            minWidth: '165px',
+                            height: '44px',
+                            border: '1.5px solid #cbd5e1',
+                            borderRadius: '15px',
                             padding: '0 0.9rem',
                             color: '#334155',
+                            fontSize: '0.94rem',
                             fontWeight: 850,
                             background: '#ffffff',
                             outline: 'none',
+                            boxShadow: '0 6px 14px rgba(15, 23, 42, 0.04)',
                         }}
                     />
 
@@ -1926,14 +2054,17 @@ export const FinanceDashboard: React.FC = () => {
                         type="button"
                         onClick={() => setAppliedGallerySearchMonth(gallerySearchMonth)}
                         style={{
-                            border: '1px solid #bfdbfe',
-                            borderRadius: '999px',
-                            padding: '0.58rem 1rem',
-                            background: 'linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%)',
-                            color: '#1d4ed8',
+                            height: '44px',
+                            border: '1.5px solid #fed7aa',
+                            borderRadius: '15px',
+                            padding: '0 1.15rem',
+                            background: '#fff7ed',
+                            color: '#9a3412',
+                            fontSize: '0.92rem',
                             fontWeight: 950,
                             cursor: 'pointer',
-                            boxShadow: '0 6px 14px rgba(37, 99, 235, 0.08)',
+                            boxShadow: '0 6px 14px rgba(234, 88, 12, 0.08)',
+                            whiteSpace: 'nowrap',
                         }}
                     >
                         검색
@@ -1956,7 +2087,11 @@ export const FinanceDashboard: React.FC = () => {
                         style={{
                             color: '#64748b',
                             fontSize: '0.82rem',
-                            fontWeight: 800,
+                            fontWeight: 850,
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '999px',
+                            padding: '0.36rem 0.68rem',
                         }}
                     >
                         {appliedGallerySearchMonth
@@ -1967,20 +2102,15 @@ export const FinanceDashboard: React.FC = () => {
 
             </div>
 
-            {saveMessage && (
-                <p style={{ margin: '0.9rem 0 0', color: '#334155', fontWeight: 850 }}>
-                    {saveMessage}
-                </p>
-            )}
 
             {filteredSavedReports.length > 0 ? (
                 <div
                     style={{
                         marginTop: '1rem',
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 260px))',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                         gap: '1rem',
-                        justifyContent: 'flex-start',
+                        width: '100%',
                     }}
                 >
 
@@ -2054,8 +2184,8 @@ export const FinanceDashboard: React.FC = () => {
                                         objectFit: 'contain',
                                         objectPosition: 'top',
                                         borderRadius: '14px',
-                                        border: '1px solid #e2e8f0',
-                                        background: '#f8fafc',
+                                        border: '1px solid #dcfce7',
+                                        background: '#f7fef9',
                                         display: 'block',
                                     }}
                                 />

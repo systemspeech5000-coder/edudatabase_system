@@ -1,7 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { toJpeg } from 'html-to-image';
 import { db, isFirebaseConfigured } from '../firebase';
 import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { type StudentRecord, SYMPTOM_CATEGORIES } from '../types';
+import {
+  type SavedSpeechProgressReport,
+  getSpeechProgressReportsFromFirebase,
+  saveSpeechProgressReportToFirebase,
+} from '../services/speechProgressStorage';
 
 const SPEECH_TYPES = ['주도형', '사교형', '안정형', '신중형'];
 
@@ -85,6 +91,26 @@ export const CoachDashboard: React.FC = () => {
   const [selectedMemoIds, setSelectedMemoIds] = useState<string[]>([]);
   const [isTrendVisible, setIsTrendVisible] = useState(false);
 
+  const speechProgressRef = useRef<HTMLDivElement | null>(null);
+  const [differenceText, setDifferenceText] = useState('');
+  const [improvedText, setImprovedText] = useState('');
+  const [repeatedProblemText, setRepeatedProblemText] = useState('');
+  const [followUpText, setFollowUpText] = useState('');
+  const [isProgressSaving, setIsProgressSaving] = useState(false);
+  const [progressSaveMessage, setProgressSaveMessage] = useState('');
+
+  const [speechProgressReports, setSpeechProgressReports] = useState<SavedSpeechProgressReport[]>([]);
+  const [isSpeechProgressGalleryLoading, setIsSpeechProgressGalleryLoading] = useState(false);
+  const [speechProgressGalleryMessage, setSpeechProgressGalleryMessage] = useState('');
+
+  const [progressGalleryNameInput, setProgressGalleryNameInput] = useState('');
+  const [progressGalleryStartInput, setProgressGalleryStartInput] = useState('');
+  const [progressGalleryEndInput, setProgressGalleryEndInput] = useState('');
+
+  const [appliedProgressGalleryName, setAppliedProgressGalleryName] = useState('');
+  const [appliedProgressGalleryStartDate, setAppliedProgressGalleryStartDate] = useState('');
+  const [appliedProgressGalleryEndDate, setAppliedProgressGalleryEndDate] = useState('');
+
   const openCuteDetail = (
     event: React.MouseEvent,
     title: string,
@@ -142,6 +168,39 @@ export const CoachDashboard: React.FC = () => {
     loadRecords();
   }, []);
 
+  const loadSpeechProgressReports = async () => {
+    setIsSpeechProgressGalleryLoading(true);
+    setSpeechProgressGalleryMessage('');
+
+    try {
+      const reports = await getSpeechProgressReportsFromFirebase();
+      setSpeechProgressReports(reports);
+    } catch (error) {
+      console.error('Speech progress gallery load error:', error);
+      setSpeechProgressGalleryMessage('🐥 저장된 변화추이 목록을 불러오지 못했어요. Firebase 설정을 확인해주세요.');
+    } finally {
+      setIsSpeechProgressGalleryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSpeechProgressReports();
+  }, []);
+
+  useEffect(() => {
+    if (!progressSaveMessage) return;
+
+    const handleDocumentClick = () => {
+      setProgressSaveMessage('');
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [progressSaveMessage]);
+
   const galleryFilteredStudents = useMemo(() => {
     return students.filter((student) => {
       const studentName = student.name?.toLowerCase() ?? '';
@@ -155,6 +214,43 @@ export const CoachDashboard: React.FC = () => {
       return matchesName && matchesStartDate && matchesEndDate;
     });
   }, [students, appliedGalleryName, appliedGalleryStartDate, appliedGalleryEndDate]);
+  const filteredSpeechProgressReports = useMemo(() => {
+    return speechProgressReports.filter((report) => {
+      const studentName = report.studentName?.toLowerCase() ?? '';
+      const nameKeyword = appliedProgressGalleryName.trim().toLowerCase();
+      const matchesName = !nameKeyword || studentName.includes(nameKeyword);
+
+      const savedDate = report.createdAtMs > 0 ? getDateInputValue(report.createdAtMs) : '';
+
+      const matchesStartDate =
+        !appliedProgressGalleryStartDate || (!!savedDate && savedDate >= appliedProgressGalleryStartDate);
+      const matchesEndDate =
+        !appliedProgressGalleryEndDate || (!!savedDate && savedDate <= appliedProgressGalleryEndDate);
+
+      return matchesName && matchesStartDate && matchesEndDate;
+    });
+  }, [
+    speechProgressReports,
+    appliedProgressGalleryName,
+    appliedProgressGalleryStartDate,
+    appliedProgressGalleryEndDate,
+  ]);
+
+  const handleProgressGallerySearch = () => {
+    setAppliedProgressGalleryName(progressGalleryNameInput);
+    setAppliedProgressGalleryStartDate(progressGalleryStartInput);
+    setAppliedProgressGalleryEndDate(progressGalleryEndInput);
+  };
+
+  const clearProgressGallerySearch = () => {
+    setProgressGalleryNameInput('');
+    setProgressGalleryStartInput('');
+    setProgressGalleryEndInput('');
+    setAppliedProgressGalleryName('');
+    setAppliedProgressGalleryStartDate('');
+    setAppliedProgressGalleryEndDate('');
+  };
+
   const selectedTrendStudents = useMemo(() => {
     return students
       .filter((student) => student.id && selectedMemoIds.includes(student.id))
@@ -233,6 +329,113 @@ export const CoachDashboard: React.FC = () => {
     };
   }, [selectedTrendStudents]);
 
+  const selectedTrendStudentName = useMemo(() => {
+    const name = selectedTrendSummary?.latestRecord?.name || selectedTrendSummary?.firstRecord?.name;
+    return name?.trim() ? name.trim() : '학생';
+  }, [selectedTrendSummary]);
+
+  const selectedTrendStartDate = useMemo(() => {
+    return selectedTrendSummary ? getDateInputValue(selectedTrendSummary.firstRecord.createdAt) : '';
+  }, [selectedTrendSummary]);
+
+  const selectedTrendEndDate = useMemo(() => {
+    return selectedTrendSummary ? getDateInputValue(selectedTrendSummary.latestRecord.createdAt) : '';
+  }, [selectedTrendSummary]);
+
+  const manualInsightCardStyle: React.CSSProperties = {
+    padding: '0.95rem',
+    borderRadius: '18px',
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    boxSizing: 'border-box',
+  };
+
+  const manualAnalysisTextStyle: React.CSSProperties = {
+    margin: '0.55rem 0 0',
+    color: '#475569',
+    fontSize: '0.84rem',
+    lineHeight: 1.55,
+    fontWeight: 700,
+    minHeight: '76px',
+    wordBreak: 'keep-all',
+    overflowWrap: 'break-word',
+  };
+
+  const manualInputLabelStyle: React.CSSProperties = {
+    marginTop: '0.8rem',
+    marginBottom: '0.35rem',
+    color: '#94a3b8',
+    fontSize: '0.76rem',
+    fontWeight: 850,
+  };
+
+  const manualTextareaStyle: React.CSSProperties = {
+    width: '100%',
+    minHeight: '96px',
+    border: '1.5px solid #ddd6fe',
+    borderRadius: '16px',
+    padding: '0.78rem 0.9rem',
+    background: '#faf5ff',
+    color: '#334155',
+    fontSize: '0.84rem',
+    fontWeight: 700,
+    lineHeight: 1.55,
+    resize: 'vertical',
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const handleSaveSpeechProgressReport = async (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.stopPropagation();
+    if (!selectedTrendSummary || selectedTrendStudents.length < 2) {
+      setProgressSaveMessage('🐣 변화 추이를 저장하려면 상담일지를 2개 이상 선택해주세요.');
+      return;
+    }
+
+    if (!selectedTrendStartDate || !selectedTrendEndDate) {
+      setProgressSaveMessage('🐣 상담 날짜를 먼저 확인해주세요.');
+      return;
+    }
+
+    if (!speechProgressRef.current) {
+      setProgressSaveMessage('🐥 저장할 변화 추이 카드를 찾지 못했어요.');
+      return;
+    }
+
+    setIsProgressSaving(true);
+    setProgressSaveMessage('');
+
+    try {
+      const imageDataUrl = await toJpeg(speechProgressRef.current, {
+        quality: 0.95,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+      });
+
+      const savedReport = await saveSpeechProgressReportToFirebase({
+        studentName: selectedTrendStudentName,
+        startDate: selectedTrendStartDate,
+        endDate: selectedTrendEndDate,
+        imageDataUrl,
+        differenceText,
+        improvedText,
+        repeatedProblemText,
+        followUpText,
+      });
+
+      setSpeechProgressReports((prev) => [savedReport, ...prev]);
+      setProgressSaveMessage('💌 변화 추이 JPG가 예쁘게 저장되었어요!');
+    } catch (error) {
+      console.error('Speech progress save error:', error);
+      setProgressSaveMessage('🐥 저장 중 문제가 생겼어요. Firebase 설정을 확인해주세요.');
+    } finally {
+      setIsProgressSaving(false);
+    }
+  };
+
   const handleGallerySearch = () => {
     setAppliedGalleryName(galleryNameInput);
     setAppliedGalleryStartDate(galleryStartInput);
@@ -251,6 +454,7 @@ export const CoachDashboard: React.FC = () => {
     if (!id) return;
 
     setIsTrendVisible(false);
+    setProgressSaveMessage('');
 
     setSelectedMemoIds((prev) => {
       if (prev.includes(id)) {
@@ -1578,7 +1782,8 @@ export const CoachDashboard: React.FC = () => {
           </div>
 
 
-          {isTrendVisible && selectedTrendStudents.length >= 2 && selectedTrendSummary && (<div
+          {isTrendVisible && selectedTrendStudents.length >= 2 && selectedTrendSummary && (<><div
+            ref={speechProgressRef}
             style={{
               margin: '1rem 0 1.2rem',
               padding: '1.15rem',
@@ -1607,7 +1812,7 @@ export const CoachDashboard: React.FC = () => {
                     fontWeight: 950,
                   }}
                 >
-                  📈 선택 상담일지 변화 추이
+                  📈 {selectedTrendStudentName} 님의 스피치 변화 추이
                 </h3>
 
                 <p
@@ -1702,89 +1907,91 @@ export const CoachDashboard: React.FC = () => {
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: '0.8rem',
                 marginBottom: '1rem',
+                alignItems: 'stretch',
               }}
             >
-              <div
-                style={{
-                  padding: '0.95rem',
-                  borderRadius: '18px',
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
+              <div style={manualInsightCardStyle}>
                 <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
                   처음 상담과 최근 상담의 차이
                 </h4>
 
-                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
-                  유형: {selectedTrendSummary.firstRecord.speechType ?? '기록 부족'} →{' '}
-                  {selectedTrendSummary.latestRecord.speechType ?? '기록 부족'}
-                </p>
+                <div style={manualAnalysisTextStyle}>
+                  <p style={{ margin: 0 }}>
+                    유형: {selectedTrendSummary.firstRecord.speechType ?? '기록 부족'} →{' '}
+                    {selectedTrendSummary.latestRecord.speechType ?? '기록 부족'}
+                  </p>
 
-                <p style={{ margin: '0.35rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
-                  점수 변화:{' '}
-                  {selectedTrendSummary.scoreChanges
-                    .map((item) => `${item.label} ${item.change > 0 ? '+' : ''}${item.change}`)
-                    .join(' / ')}
-                </p>
+                  <p style={{ margin: '0.35rem 0 0' }}>
+                    점수 변화:{' '}
+                    {selectedTrendSummary.scoreChanges
+                      .map((item) => `${item.label} ${item.change > 0 ? '+' : ''}${item.change}`)
+                      .join(' / ')}
+                  </p>
+                </div>
+
+                <div style={manualInputLabelStyle}></div>
+
+                <textarea
+                  value={differenceText}
+                  onChange={(e) => setDifferenceText(e.target.value)}
+                  placeholder="강사 직접 입력란"
+                  style={manualTextareaStyle}
+                />
               </div>
 
-              <div
-                style={{
-                  padding: '0.95rem',
-                  borderRadius: '18px',
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
+              <div style={manualInsightCardStyle}>
                 <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
                   개선된 점
                 </h4>
 
-                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                <div style={manualAnalysisTextStyle}>
                   {selectedTrendSummary.improvedScores.length > 0
                     ? selectedTrendSummary.improvedScores
                       .map((item) => `${item.label} +${item.change}점`)
                       .join(', ')
                     : '기록 부족'}
-                </p>
+                </div>
+
+                <div style={manualInputLabelStyle}></div>
+
+                <textarea
+                  value={improvedText}
+                  onChange={(e) => setImprovedText(e.target.value)}
+                  placeholder="강사 직접 입력란"
+                  style={manualTextareaStyle}
+                />
               </div>
 
-              <div
-                style={{
-                  padding: '0.95rem',
-                  borderRadius: '18px',
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
+              <div style={manualInsightCardStyle}>
                 <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
                   반복적으로 나타난 문제
                 </h4>
 
-                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                <div style={manualAnalysisTextStyle}>
                   {selectedTrendSummary.repeatedSymptoms.length > 0
                     ? selectedTrendSummary.repeatedSymptoms
                       .slice(0, 5)
                       .map((item) => `${item.symptom}(${item.count}회)`)
                       .join(', ')
                     : '기록 부족'}
-                </p>
+                </div>
+
+                <div style={manualInputLabelStyle}></div>
+
+                <textarea
+                  value={repeatedProblemText}
+                  onChange={(e) => setRepeatedProblemText(e.target.value)}
+                  placeholder="강사 직접 입력란"
+                  style={manualTextareaStyle}
+                />
               </div>
 
-              <div
-                style={{
-                  padding: '0.95rem',
-                  borderRadius: '18px',
-                  background: '#ffffff',
-                  border: '1px solid #e2e8f0',
-                }}
-              >
+              <div style={manualInsightCardStyle}>
                 <h4 style={{ margin: 0, color: '#334155', fontSize: '0.92rem', fontWeight: 950 }}>
                   추가 관리가 필요한 점
                 </h4>
 
-                <p style={{ margin: '0.55rem 0 0', color: '#475569', fontSize: '0.84rem', lineHeight: 1.55, fontWeight: 700 }}>
+                <div style={manualAnalysisTextStyle}>
                   {selectedTrendSummary.latestLowScores.length > 0
                     ? selectedTrendSummary.latestLowScores
                       .map((item) => `${item.label} 점수 낮음`)
@@ -1792,7 +1999,16 @@ export const CoachDashboard: React.FC = () => {
                     : selectedTrendSummary.repeatedSymptoms.length > 0
                       ? '반복 문제 항목을 중심으로 추가 관리가 필요합니다.'
                       : '기록 부족'}
-                </p>
+                </div>
+
+                <div style={manualInputLabelStyle}></div>
+
+                <textarea
+                  value={followUpText}
+                  onChange={(e) => setFollowUpText(e.target.value)}
+                  placeholder="강사 직접 입력란"
+                  style={manualTextareaStyle}
+                />
               </div>
             </div>
 
@@ -1862,6 +2078,53 @@ export const CoachDashboard: React.FC = () => {
               ))}
             </div>
           </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: '0.65rem',
+                margin: '-0.25rem 0 1.2rem',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={(e) => handleSaveSpeechProgressReport(e)}
+                disabled={isProgressSaving}
+                style={{
+                  minWidth: '150px',
+                  height: '44px',
+                  borderRadius: '16px',
+                  fontWeight: 950,
+                  opacity: isProgressSaving ? 0.65 : 1,
+                  cursor: isProgressSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isProgressSaving ? '저장 중...' : '저장하기'}
+              </button>
+
+              {progressSaveMessage && (
+                <div
+                  style={{
+                    maxWidth: '520px',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '18px',
+                    background: '#fff7ed',
+                    border: '1.5px solid #fed7aa',
+                    color: '#9a3412',
+                    fontSize: '0.86rem',
+                    fontWeight: 900,
+                    lineHeight: 1.5,
+                    boxShadow: '0 10px 22px rgba(251, 146, 60, 0.12)',
+                  }}
+                >
+                  {progressSaveMessage}
+                </div>
+              )}
+            </div>
+          </>
           )}
 
           {galleryFilteredStudents.length === 0 ? (
@@ -2010,6 +2273,365 @@ export const CoachDashboard: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div
+        className="card"
+        style={{
+          marginTop: '1.5rem',
+          marginBottom: '1.5rem',
+          height: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
+          width: '100%',
+          borderRadius: '28px',
+          background: '#ffffff',
+          border: '1.5px solid #e2e8f0',
+          boxShadow: '0 18px 46px rgba(15, 23, 42, 0.06)',
+          padding: '1.25rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            alignItems: 'flex-start',
+            flexWrap: 'wrap',
+            marginBottom: '1rem',
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: '1.45rem', margin: 0, color: '#334155' }}>
+              📸 변화추이 비교하기
+            </h2>
+            <p style={{ fontSize: '0.9rem', color: '#64748b', marginTop: '0.35rem', fontWeight: 700 }}>
+              저장된 스피치 변화 추이 JPG를 학생 이름과 기간으로 검색할 수 있습니다.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            onClick={loadSpeechProgressReports}
+            disabled={isSpeechProgressGalleryLoading}
+            style={{
+              minWidth: '104px',
+              height: '38px',
+              borderRadius: '14px',
+              fontWeight: 900,
+              opacity: isSpeechProgressGalleryLoading ? 0.65 : 1,
+              cursor: isSpeechProgressGalleryLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isSpeechProgressGalleryLoading ? '불러오는 중...' : '새로고침'}
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(220px, 1.3fr) minmax(170px, 1fr) minmax(170px, 1fr) auto auto',
+            gap: '0.85rem',
+            alignItems: 'end',
+            marginBottom: '1rem',
+            padding: '1rem',
+            borderRadius: '24px',
+            background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.95), rgba(236, 253, 245, 0.72))',
+            border: '1px solid rgba(187, 247, 208, 0.8)',
+            boxShadow: '0 14px 32px rgba(22, 101, 52, 0.06)',
+          }}
+        >
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: 950,
+                color: '#166534',
+                marginBottom: '0.42rem',
+                display: 'block',
+              }}
+            >
+              학생 이름
+            </label>
+            <input
+              type="text"
+              value={progressGalleryNameInput}
+              onChange={(e) => setProgressGalleryNameInput(e.target.value)}
+              placeholder="학생 이름 일부만 입력해도 돼요"
+              style={{
+                height: '46px',
+                borderRadius: '16px',
+                border: '1.5px solid #bbf7d0',
+                background: '#ffffff',
+                padding: '0 1rem',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                boxSizing: 'border-box',
+                width: '100%',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: 950,
+                color: '#166534',
+                marginBottom: '0.42rem',
+                display: 'block',
+              }}
+            >
+              시작 날짜
+            </label>
+            <input
+              type="date"
+              value={progressGalleryStartInput}
+              onChange={(e) => setProgressGalleryStartInput(e.target.value)}
+              style={{
+                height: '46px',
+                borderRadius: '16px',
+                border: '1.5px solid #bbf7d0',
+                background: '#ffffff',
+                padding: '0 1rem',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                boxSizing: 'border-box',
+                width: '100%',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label
+              style={{
+                fontSize: '0.84rem',
+                fontWeight: 950,
+                color: '#166534',
+                marginBottom: '0.42rem',
+                display: 'block',
+              }}
+            >
+              종료 날짜
+            </label>
+            <input
+              type="date"
+              value={progressGalleryEndInput}
+              onChange={(e) => setProgressGalleryEndInput(e.target.value)}
+              style={{
+                height: '46px',
+                borderRadius: '16px',
+                border: '1.5px solid #bbf7d0',
+                background: '#ffffff',
+                padding: '0 1rem',
+                fontSize: '0.92rem',
+                fontWeight: 700,
+                boxSizing: 'border-box',
+                width: '100%',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleProgressGallerySearch}
+            style={{
+              height: '46px',
+              borderRadius: '16px',
+              padding: '0 1.15rem',
+              fontWeight: 950,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 10px 20px rgba(22, 101, 52, 0.15)',
+            }}
+          >
+            검색
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={clearProgressGallerySearch}
+            style={{
+              height: '46px',
+              borderRadius: '16px',
+              padding: '0 1rem',
+              fontWeight: 900,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            전체 보기
+          </button>
+        </div>
+
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.8rem 1rem',
+            borderRadius: '18px',
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            color: '#166534',
+            fontSize: '0.86rem',
+            fontWeight: 900,
+          }}
+        >
+          검색 결과 {filteredSpeechProgressReports.length}개 / 전체 저장 이미지 {speechProgressReports.length}개
+        </div>
+
+        {speechProgressGalleryMessage && (
+          <div
+            style={{
+              marginBottom: '1rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '18px',
+              background: '#fff7ed',
+              border: '1.5px solid #fed7aa',
+              color: '#9a3412',
+              fontSize: '0.86rem',
+              fontWeight: 900,
+              lineHeight: 1.5,
+            }}
+          >
+            {speechProgressGalleryMessage}
+          </div>
+        )}
+
+        {isSpeechProgressGalleryLoading ? (
+          <div
+            style={{
+              padding: '1.5rem',
+              borderRadius: '20px',
+              background: '#f8fafc',
+              border: '1px dashed #cbd5e1',
+              color: '#64748b',
+              fontWeight: 850,
+              textAlign: 'center',
+            }}
+          >
+            저장된 변화추이 JPG를 불러오는 중이에요 🐣
+          </div>
+        ) : filteredSpeechProgressReports.length === 0 ? (
+          <div
+            style={{
+              padding: '1.5rem',
+              borderRadius: '20px',
+              background: '#ffffff',
+              border: '1px dashed #cbd5e1',
+              color: '#64748b',
+              fontWeight: 850,
+              textAlign: 'center',
+            }}
+          >
+            아직 저장된 변화추이 JPG가 없어요 🐣
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 280px))',
+              gap: '1rem',
+              justifyContent: 'flex-start',
+            }}
+          >
+            {filteredSpeechProgressReports.map((report) => (
+              <div
+                key={report.id}
+                style={{
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '22px',
+                  background: '#ffffff',
+                  padding: '0.85rem',
+                  boxShadow: '0 10px 22px rgba(15, 23, 42, 0.06)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: '0.6rem',
+                    alignItems: 'flex-start',
+                    marginBottom: '0.7rem',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: '#166534',
+                        fontWeight: 950,
+                        fontSize: '0.94rem',
+                        wordBreak: 'keep-all',
+                      }}
+                    >
+                      {report.studentName || '학생'}
+                    </div>
+                    <div
+                      style={{
+                        color: '#64748b',
+                        fontWeight: 800,
+                        fontSize: '0.76rem',
+                        marginTop: '0.18rem',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {report.startDate || '-'} → {report.endDate || '-'}
+                    </div>
+                    <div
+                      style={{
+                        color: '#94a3b8',
+                        fontWeight: 750,
+                        fontSize: '0.72rem',
+                        marginTop: '0.18rem',
+                      }}
+                    >
+                      저장: {getKoreanDateTime(report.createdAtMs)}
+                    </div>
+                  </div>
+
+                  <a
+                    href={report.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: '#6d28d9',
+                      fontWeight: 950,
+                      fontSize: '0.76rem',
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                      background: '#f5f3ff',
+                      border: '1px solid #ddd6fe',
+                      borderRadius: '999px',
+                      padding: '0.25rem 0.55rem',
+                    }}
+                  >
+                    크게 보기
+                  </a>
+                </div>
+
+                <a href={report.imageUrl} target="_blank" rel="noreferrer" style={{ display: 'block' }}>
+                  <img
+                    src={report.imageUrl}
+                    alt={`${report.studentName || '학생'} 스피치 변화 추이 JPG`}
+                    style={{
+                      width: '100%',
+                      height: '190px',
+                      objectFit: 'contain',
+                      objectPosition: 'top',
+                      borderRadius: '16px',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      display: 'block',
+                    }}
+                  />
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

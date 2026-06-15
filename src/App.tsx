@@ -319,6 +319,8 @@ function App() {
 
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder="교사 이메일 입력"
@@ -355,6 +357,8 @@ function App() {
 
                   <input
                     type="password"
+                    name="password"
+                    autoComplete="current-password"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     onKeyDown={(e) => {
@@ -951,6 +955,8 @@ function App() {
 
               <input
                 type="email"
+                name="email"
+                autoComplete="email"
                 value={user.email || ''}
                 disabled
                 style={{
@@ -985,6 +991,8 @@ function App() {
 
               <input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 value={teacherPassword}
                 onChange={(e) => setTeacherPassword(e.target.value)}
                 onKeyDown={(e) => {
