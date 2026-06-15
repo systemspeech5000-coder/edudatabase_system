@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -22,12 +23,18 @@ export const isFirebaseConfigured = !!(
 
 let db: ReturnType<typeof getFirestore> | null = null;
 let storage: ReturnType<typeof getStorage> | null = null;
+let auth: ReturnType<typeof getAuth> | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
 
 if (isFirebaseConfigured) {
   try {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
     db = getFirestore(app);
     storage = getStorage(app);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+
     console.log("Firebase successfully initialized.");
   } catch (error) {
     console.error("Firebase initialization failed:", error);
@@ -36,5 +43,5 @@ if (isFirebaseConfigured) {
   console.warn("Firebase credentials are not configured. Running in Demo Mode (using localStorage).");
 }
 
-export { db, storage };
+export { db, storage, auth, googleProvider };
 export { firebaseConfig };

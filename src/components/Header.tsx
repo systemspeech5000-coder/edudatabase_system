@@ -4,9 +4,18 @@ import { isFirebaseConfigured } from '../firebase';
 interface HeaderProps {
   currentTab: 'assessment' | 'dashboard';
   setCurrentTab: (tab: 'assessment' | 'dashboard') => void;
+  isTeacher: boolean;
+  userEmail?: string | null;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentTab, setCurrentTab }) => {
+export const Header: React.FC<HeaderProps> = ({
+  currentTab,
+  setCurrentTab,
+  isTeacher,
+  userEmail,
+  onLogout,
+}) => {
   return (
     <header className="app-header">
       <div className="header-logo" onClick={() => setCurrentTab('assessment')}>
@@ -16,9 +25,10 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, setCurrentTab }) => 
           <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           <line x1="9" y1="21" x2="15" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
+
         <div className="logo-text-wrapper">
-          <span className="logo-text"> 맞춤형 스피치 관리</span>
-          <span className="logo-subtext">Speech Monitor</span>
+          <span className="logo-text">정서&스피치 모니터링</span>
+          <span className="logo-subtext">Emotion & Speech Monitor</span>
         </div>
       </div>
 
@@ -29,12 +39,15 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, setCurrentTab }) => 
         >
           <span className="nav-icon">✏️</span> 진단 작성하기
         </button>
-        <button
-          className={`nav-btn ${currentTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('dashboard')}
-        >
-          <span className="nav-icon">✨</span> 지난 결과 목록
-        </button>
+
+        {isTeacher && (
+          <button
+            className={`nav-btn ${currentTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('dashboard')}
+          >
+            <span className="nav-icon">✨</span> 지난 결과 목록
+          </button>
+        )}
       </nav>
 
       <div className="header-status">
@@ -49,6 +62,15 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, setCurrentTab }) => 
             로컬 데모 모드 작동
           </span>
         )}
+
+        <button
+          type="button"
+          className="btn btn-secondary btn-small"
+          onClick={onLogout}
+          style={{ marginLeft: '0.75rem' }}
+        >
+          로그아웃
+        </button>
       </div>
     </header>
   );
