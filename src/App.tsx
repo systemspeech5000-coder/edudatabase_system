@@ -186,8 +186,8 @@ function App() {
             className="card animate-fade-in"
             style={{
               width: '100%',
-              maxWidth: '760px',
-              padding: '2.8rem 3.4rem',
+              maxWidth: '860px',
+              padding: '2.6rem 3.8rem',
               textAlign: 'center',
               borderRadius: '34px',
               background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -224,7 +224,7 @@ function App() {
             <div
               style={{
                 width: '100%',
-                maxWidth: '620px',
+                maxWidth: '690px',
                 margin: '0 auto',
                 boxSizing: 'border-box',
                 position: 'relative',
@@ -275,6 +275,24 @@ function App() {
                 >
                   교사용 모니터링 페이지에 접속합니다.
                 </p>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    marginTop: '0.9rem',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '999px',
+                    background: 'rgba(255, 255, 255, 0.78)',
+                    color: '#be185d',
+                    fontSize: '0.86rem',
+                    fontWeight: 900,
+                    boxShadow: '0 8px 20px rgba(236, 72, 153, 0.12)',
+                  }}
+                >
+                  🌷 오늘도 따뜻한 수업을 응원해요
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -457,8 +475,8 @@ function App() {
           className="card animate-fade-in"
           style={{
             width: '100%',
-            maxWidth: '960px',
-            padding: '3.2rem 3rem',
+            maxWidth: '900px',
+            padding: '2.15rem 2.4rem',
             textAlign: 'center',
             borderRadius: '34px',
             background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -495,15 +513,15 @@ function App() {
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div
               style={{
-                width: '82px',
-                height: '82px',
-                borderRadius: '28px',
+                width: '64px',
+                height: '64px',
+                borderRadius: '22px',
                 background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 1.25rem auto',
-                fontSize: '2.4rem',
+                margin: '0 auto 0.85rem auto',
+                fontSize: '2rem',
                 boxShadow: '0 18px 36px rgba(139, 92, 246, 0.3)',
               }}
             >
@@ -514,7 +532,7 @@ function App() {
               className="welcome-title"
               style={{
                 margin: 0,
-                fontSize: '2.15rem',
+                fontSize: '1.85rem',
                 fontWeight: 950,
                 color: '#4c1d95',
                 letterSpacing: '-0.04em',
@@ -525,7 +543,7 @@ function App() {
 
             <p
               style={{
-                margin: '0.9rem 0 0 0',
+                margin: '0.55rem 0 0 0',
                 fontSize: '1rem',
                 fontWeight: 700,
                 color: '#64748b',
@@ -539,9 +557,9 @@ function App() {
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))',
-                gap: '1.25rem',
-                marginTop: '2.2rem',
-                marginBottom: '1.5rem',
+                gap: '1rem',
+                marginTop: '1.45rem',
+                marginBottom: '0.9rem',
               }}
             >
               <button
@@ -550,7 +568,7 @@ function App() {
                 style={{
                   border: 'none',
                   borderRadius: '24px',
-                  padding: '1.6rem 1.4rem',
+                  padding: '1.05rem 1.25rem',
                   background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
                   color: '#5b21b6',
                   fontSize: '1.25rem',
@@ -559,7 +577,7 @@ function App() {
                   boxShadow: '0 14px 28px rgba(124, 58, 237, 0.14)',
                 }}
               >
-                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>🧑‍🎓</div>
+                <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>🧑‍🎓</div>
                 학생 입장
                 <div
                   style={{
@@ -579,7 +597,7 @@ function App() {
                 style={{
                   border: 'none',
                   borderRadius: '24px',
-                  padding: '1.6rem 1.4rem',
+                  padding: '1.05rem 1.25rem',
                   background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
                   color: '#9d174d',
                   fontSize: '1.25rem',
@@ -588,7 +606,7 @@ function App() {
                   boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
                 }}
               >
-                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>👩‍🏫</div>
+                <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>👩‍🏫</div>
                 교사 입장
                 <div
                   style={{
@@ -624,8 +642,8 @@ function App() {
           className="card animate-fade-in"
           style={{
             width: '100%',
-            maxWidth: '680px',
-            padding: '3.2rem 3rem',
+            maxWidth: '900px',
+            padding: '2.15rem 2.4rem',
             textAlign: 'center',
             borderRadius: '34px',
             background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
@@ -662,15 +680,15 @@ function App() {
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div
               style={{
-                width: '82px',
-                height: '82px',
-                borderRadius: '28px',
+                width: '64px',
+                height: '64px',
+                borderRadius: '22px',
                 background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 1.25rem auto',
-                fontSize: '2.4rem',
+                margin: '0 auto 0.85rem auto',
+                fontSize: '2rem',
                 boxShadow: '0 18px 36px rgba(139, 92, 246, 0.3)',
               }}
             >
@@ -681,7 +699,7 @@ function App() {
               className="welcome-title"
               style={{
                 margin: 0,
-                fontSize: '2.15rem',
+                fontSize: '1.85rem',
                 fontWeight: 950,
                 color: '#4c1d95',
                 letterSpacing: '-0.04em',
@@ -692,7 +710,7 @@ function App() {
 
             <p
               style={{
-                margin: '0.9rem 0 0 0',
+                margin: '0.55rem 0 0 0',
                 fontSize: '1rem',
                 fontWeight: 700,
                 color: '#64748b',
@@ -709,8 +727,8 @@ function App() {
                 display: 'grid',
                 gridTemplateColumns: isTeacherAccount ? '1fr 1fr' : '1fr',
                 gap: '1rem',
-                marginTop: '2.2rem',
-                marginBottom: '1.5rem',
+                marginTop: '1.45rem',
+                marginBottom: '0.9rem',
               }}
             >
               <button
@@ -719,7 +737,7 @@ function App() {
                 style={{
                   border: 'none',
                   borderRadius: '24px',
-                  padding: '1.35rem 1rem',
+                  padding: '1.05rem 1.25rem',
                   background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
                   color: '#5b21b6',
                   fontSize: '1.25rem',
@@ -728,7 +746,7 @@ function App() {
                   boxShadow: '0 14px 28px rgba(124, 58, 237, 0.14)',
                 }}
               >
-                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>🧑‍🎓</div>
+                <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>🧑‍🎓</div>
                 학생 입장
                 <div
                   style={{
@@ -749,7 +767,7 @@ function App() {
                   style={{
                     border: 'none',
                     borderRadius: '24px',
-                    padding: '1.35rem 1rem',
+                    padding: '1.05rem 1.25rem',
                     background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
                     color: '#9d174d',
                     fontSize: '1.25rem',
@@ -758,7 +776,7 @@ function App() {
                     boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
                   }}
                 >
-                  <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>👩‍🏫</div>
+                  <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>👩‍🏫</div>
                   교사 입장
                   <div
                     style={{
@@ -816,9 +834,9 @@ function App() {
         className="card animate-fade-in"
         style={{
           width: '100%',
-          maxWidth: '640px',
-          margin: '4.5rem auto',
-          padding: '3.4rem 3.2rem',
+          maxWidth: '860px',
+          margin: '3.2rem auto',
+          padding: '2.8rem 3.8rem',
           borderRadius: '36px',
           background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
           border: '1.5px solid rgba(196, 181, 253, 0.7)',
@@ -854,7 +872,7 @@ function App() {
         <div
           style={{
             width: '100%',
-            maxWidth: '460px',
+            maxWidth: '690px',
             margin: '0 auto',
             boxSizing: 'border-box',
             position: 'relative',
@@ -905,6 +923,24 @@ function App() {
             >
               교사 모드 접속을 위해 비밀번호를 한 번 더 입력해주세요.
             </p>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                marginTop: '0.9rem',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '999px',
+                background: 'rgba(255, 255, 255, 0.78)',
+                color: '#be185d',
+                fontSize: '0.86rem',
+                fontWeight: 900,
+                boxShadow: '0 8px 20px rgba(236, 72, 153, 0.12)',
+              }}
+            >
+              🌷 오늘도 따뜻한 수업을 응원해요
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
