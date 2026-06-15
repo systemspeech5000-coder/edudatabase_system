@@ -227,18 +227,21 @@ export const StudentAssessment: React.FC = () => {
         });
       }
 
-      const record = {
+      const record: StudentRecord & { gender: string; age: string } = {
         name: studentName,
         gender: info.gender,
         age: info.age,
-        info,
+        info: {
+          ...info,
+          birthDate: '',
+        },
         symptoms,
         speechType,
         scores,
         memo,
         memoImageUrl: imageUrl,
         createdAt: now.toISOString(),
-      } as StudentRecord & { gender: string; age: string };
+      };
 
       if (isFirebaseConfigured && db) {
         setUploadProgress('Firestore에 수강생 진단결과 등록 중...');
