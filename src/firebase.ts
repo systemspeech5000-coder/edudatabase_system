@@ -9,14 +9,17 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Check if critical environment variables are set and are not placeholder text
+// Firebase 필수 환경변수 확인
 export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
   firebaseConfig.projectId &&
   firebaseConfig.storageBucket &&
+  firebaseConfig.messagingSenderId &&
+  firebaseConfig.appId &&
   !firebaseConfig.apiKey.includes('your-') &&
   firebaseConfig.apiKey !== ''
 );
@@ -35,12 +38,12 @@ if (isFirebaseConfigured) {
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
 
-    console.log("Firebase successfully initialized.");
+    console.log('Firebase successfully initialized.');
   } catch (error) {
-    console.error("Firebase initialization failed:", error);
+    console.error('Firebase initialization failed:', error);
   }
 } else {
-  console.warn("Firebase credentials are not configured. Running in Demo Mode (using localStorage).");
+  console.warn('Firebase credentials are not configured. Running in Demo Mode.');
 }
 
 export { db, storage, auth, googleProvider };

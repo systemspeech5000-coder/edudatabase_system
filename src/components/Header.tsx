@@ -4,17 +4,17 @@ import { isFirebaseConfigured } from '../firebase';
 interface HeaderProps {
   currentTab: 'assessment' | 'dashboard';
   setCurrentTab: (tab: 'assessment' | 'dashboard') => void;
-  isTeacher: boolean;
-  userEmail?: string | null;
+  isTeacherMode: boolean;
   onLogout: () => void;
+  onExitTeacherMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   currentTab,
   setCurrentTab,
-  isTeacher,
-  userEmail,
+  isTeacherMode,
   onLogout,
+  onExitTeacherMode,
 }) => {
   return (
     <header className="app-header">
@@ -27,25 +27,27 @@ export const Header: React.FC<HeaderProps> = ({
         </svg>
 
         <div className="logo-text-wrapper">
-          <span className="logo-text">정서&스피치 모니터링</span>
+          <span className="logo-text">스피치 맞춤형 진단</span>
           <span className="logo-subtext">Emotion & Speech Monitor</span>
         </div>
       </div>
 
       <nav className="header-nav">
-        <button
-          className={`nav-btn ${currentTab === 'assessment' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('assessment')}
-        >
-          <span className="nav-icon">✏️</span> 진단 작성하기
-        </button>
+        {!isTeacherMode && (
+          <button
+            className={`nav-btn ${currentTab === 'assessment' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('assessment')}
+          >
+            <span className="nav-icon">✏️</span> 진단 작성하기
+          </button>
+        )}
 
-        {isTeacher && (
+        {isTeacherMode && (
           <button
             className={`nav-btn ${currentTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setCurrentTab('dashboard')}
           >
-            <span className="nav-icon">✨</span> 지난 결과 목록
+            <span className="nav-icon">✨</span> 학생 진단결과
           </button>
         )}
       </nav>
@@ -63,11 +65,22 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         )}
 
+        {isTeacherMode && onExitTeacherMode && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            onClick={onExitTeacherMode}
+            style={{ marginLeft: '0.5rem' }}
+          >
+            학생 모드로
+          </button>
+        )}
+
         <button
           type="button"
           className="btn btn-secondary btn-small"
           onClick={onLogout}
-          style={{ marginLeft: '0.75rem' }}
+          style={{ marginLeft: '0.5rem' }}
         >
           로그아웃
         </button>

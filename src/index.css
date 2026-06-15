@@ -1433,3 +1433,17 @@ p {
 .memo-img-wrapper::-webkit-scrollbar-thumb:hover {
   background: hsl(262, 40%, 80%);
 }
+
+.sidebar-card {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.coach-dashboard-wrapper {
+  overflow: visible;
+}
+
+.dashboard-main-grid {
+  align-items: start;
+}

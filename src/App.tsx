@@ -1,21 +1,39 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
 
 import { Header } from './components/Header';
 import { StudentAssessment } from './components/StudentAssessment';
 import { CoachDashboard } from './components/CoachDashboard';
-import { auth, googleProvider, isFirebaseConfigured } from './firebase';
+import { auth, isFirebaseConfigured } from './firebase';
+
+type AppMode = 'select' | 'student' | 'teacherLogin' | 'teacher';
 
 function App() {
   const [currentTab, setCurrentTab] = useState<'assessment' | 'dashboard'>('assessment');
   const [showConfigGuide, setShowConfigGuide] = useState(!isFirebaseConfigured);
+
   const [user, setUser] = useState<User | null>(null);
-  const [hasEntered, setHasEntered] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  const [appMode, setAppMode] = useState<AppMode>('select');
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+
+  const [teacherPassword, setTeacherPassword] = useState('');
+  const [teacherLoginError, setTeacherLoginError] = useState('');
+  const [isTeacherLoginLoading, setIsTeacherLoginLoading] = useState(false);
+
   const teacherUid = import.meta.env.VITE_TEACHER_UID;
-  const isTeacher = !!user && !!teacherUid && user.uid === teacherUid;
+  const isTeacherAccount = !!user && !!teacherUid && user.uid === teacherUid;
+  const isTeacherMode = appMode === 'teacher';
 
   useEffect(() => {
     if (!auth) {
@@ -28,7 +46,7 @@ function App() {
       setIsAuthLoading(false);
 
       if (!currentUser) {
-        setHasEntered(false);
+        setAppMode('select');
         setCurrentTab('assessment');
       }
     });
@@ -36,38 +54,109 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleGoogleLogin = async () => {
+  const handleEmailLogin = async () => {
     if (!auth) {
       alert('Firebase 설정이 필요합니다. Vercel 환경변수를 먼저 확인해주세요.');
       return;
     }
 
+    if (!loginEmail || !loginPassword) {
+      setLoginError('이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    setIsLoginLoading(true);
+    setLoginError('');
+
     try {
-      await signInWithPopup(auth, googleProvider);
+      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+      setAppMode('select');
+    } catch (error: any) {
+      console.error('로그인 실패 코드:', error.code);
+      console.error('로그인 실패 메시지:', error.message);
+
+      if (error.code === 'auth/user-not-found') {
+        setLoginError('등록되지 않은 이메일입니다. Firebase Users에 계정이 있는지 확인해주세요.');
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setLoginError('Firebase에서 Email/Password 로그인이 아직 활성화되지 않았습니다.');
+      } else {
+        setLoginError(`로그인 실패: ${error.code}`);
+      }
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleTeacherLogin = async () => {
+    if (!user) return;
+
+    if (!teacherUid || user.uid !== teacherUid) {
+      setTeacherLoginError('등록된 교사 계정이 아닙니다.');
+      return;
+    }
+
+    if (!teacherPassword) {
+      setTeacherLoginError('교사 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    setIsTeacherLoginLoading(true);
+    setTeacherLoginError('');
+
+    try {
+      await signInWithEmailAndPassword(auth!, user.email || '', teacherPassword);
+
+      setAppMode('teacher');
+      setCurrentTab('dashboard');
     } catch (error) {
       console.error(error);
-      alert('Google 로그인 중 오류가 발생했습니다.');
+      setTeacherLoginError('교사 비밀번호가 올바르지 않습니다.');
+    } finally {
+      setIsTeacherLoginLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    if (!auth) return;
+    if (auth) {
+      await signOut(auth);
+    }
 
-    await signOut(auth);
     setUser(null);
-    setHasEntered(false);
+    setAppMode('select');
+    setCurrentTab('assessment');
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginError('');
+    setTeacherPassword('');
+    setTeacherLoginError('');
+  };
+
+  const enterStudentMode = () => {
+    setAppMode('student');
     setCurrentTab('assessment');
   };
 
-  const enterStudent = () => {
+  const openTeacherLogin = () => {
+    setAppMode('teacherLogin');
     setCurrentTab('assessment');
-    setHasEntered(true);
+    setLoginError('');
+    setTeacherPassword('');
+    setTeacherLoginError('');
   };
 
-  const enterTeacher = () => {
-    setCurrentTab('dashboard');
-    setHasEntered(true);
+  const exitTeacherMode = () => {
+    setAppMode('student');
+    setCurrentTab('assessment');
   };
+  const goToFirstScreen = () => {
+    setAppMode('select');
+    setCurrentTab('assessment');
+    setTeacherPassword('');
+    setTeacherLoginError('');
+  };
+
 
   if (isAuthLoading) {
     return (
@@ -78,92 +167,827 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <div className="card animate-fade-in" style={{
-        maxWidth: '520px',
-        margin: '5rem auto',
-        padding: '2.5rem',
-        textAlign: 'center'
-      }}>
-        <h1 className="welcome-title">정서&스피치 모니터링</h1>
-        <p className="step-desc-text" style={{ marginBottom: '1.5rem' }}>
-          서비스를 이용하려면 Google 계정으로 로그인해주세요.
-        </p>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleGoogleLogin}
+    if (appMode === 'teacherLogin') {
+      return (
+        <div
+          className="card animate-fade-in"
+          style={{
+            maxWidth: '520px',
+            margin: '5rem auto',
+            padding: '2.5rem',
+          }}
         >
-          Google 계정으로 로그인
-        </button>
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              margin: '0 auto',
+              boxSizing: 'border-box',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '22px',
+                  background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1rem auto',
+                  fontSize: '1.8rem',
+                  boxShadow: '0 14px 30px rgba(139, 92, 246, 0.28)',
+                }}
+              >
+                👩‍🏫
+              </div>
 
-        {!isFirebaseConfigured && (
-          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'hsl(350, 75%, 45%)' }}>
-            Firebase 설정이 등록되지 않았습니다. Vercel 환경변수를 확인해주세요.
-          </p>
-        )}
+              <h1
+                className="welcome-title"
+                style={{
+                  textAlign: 'center',
+                  margin: 0,
+                  fontSize: '1.65rem',
+                  fontWeight: 950,
+                  color: '#4c1d95',
+                }}
+              >
+                교사 로그인
+              </h1>
+
+              <p
+                className="step-desc-text"
+                style={{
+                  textAlign: 'center',
+                  margin: '0.65rem 0 0 0',
+                  fontSize: '0.95rem',
+                  fontWeight: 650,
+                  color: '#64748b',
+                  lineHeight: 1.55,
+                }}
+              >
+                교사용 모니터링 페이지에 접속합니다.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem',
+              }}
+            >
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '0.6rem',
+                    fontSize: '1.05rem',
+                    fontWeight: 900,
+                    color: '#4c1d95',
+                  }}
+                >
+                  교사 이메일
+                </label>
+
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="교사 이메일 입력"
+                  style={{
+                    width: '100%',
+                    height: '54px',
+                    borderRadius: '17px',
+                    border: '1.5px solid #ddd6fe',
+                    background: '#ffffff',
+                    padding: '0 1rem',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                  }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '0.6rem',
+                    fontSize: '1.05rem',
+                    fontWeight: 900,
+                    color: '#4c1d95',
+                  }}
+                >
+                  교사 비밀번호
+                </label>
+
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="교사 비밀번호 입력"
+                  style={{
+                    width: '100%',
+                    height: '54px',
+                    borderRadius: '17px',
+                    border: '1.5px solid #ddd6fe',
+                    background: '#ffffff',
+                    padding: '0 1rem',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                  }}
+                />
+              </div>
+
+              {loginError && (
+                <p
+                  style={{
+                    color: 'hsl(350, 75%, 45%)',
+                    fontWeight: 800,
+                    margin: '-0.3rem 0 0 0',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {loginError}
+                </p>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.8rem',
+                marginTop: '1.7rem',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleEmailLogin}
+                disabled={isLoginLoading}
+                style={{
+                  width: '220px',
+                  height: '56px',
+                  borderRadius: '18px',
+                  fontSize: '1.05rem',
+                  fontWeight: 950,
+                  boxShadow: '0 14px 28px rgba(124, 58, 237, 0.26)',
+                }}
+              >
+                {isLoginLoading ? '로그인 중...' : '교사 로그인'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setAppMode('select')}
+                disabled={isLoginLoading}
+                style={{
+                  width: '160px',
+                  height: '44px',
+                  borderRadius: '16px',
+                  fontSize: '0.92rem',
+                  fontWeight: 850,
+                }}
+              >
+                돌아가기
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (appMode === 'student') {
+      return (
+        <>
+          <Header
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            isTeacherMode={false}
+            onLogout={() => {
+              setAppMode('select');
+              setCurrentTab('assessment');
+            }}
+            onExitTeacherMode={() => {
+              setAppMode('select');
+              setCurrentTab('assessment');
+            }}
+          />
+
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <StudentAssessment />
+          </main>
+        </>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '1.5rem 2rem 2rem',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          className="card animate-fade-in"
+          style={{
+            width: '100%',
+            maxWidth: '680px',
+            padding: '3.2rem 3rem',
+            marginTop: '-2rem',
+            textAlign: 'center',
+            borderRadius: '34px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
+            border: '1.5px solid rgba(196, 181, 253, 0.7)',
+            boxShadow: '0 28px 80px rgba(88, 28, 135, 0.18)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '-70px',
+              right: '-60px',
+              width: '180px',
+              height: '180px',
+              borderRadius: '999px',
+              background: 'rgba(216, 180, 254, 0.35)',
+            }}
+          />
+
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-80px',
+              left: '-70px',
+              width: '200px',
+              height: '200px',
+              borderRadius: '999px',
+              background: 'rgba(251, 207, 232, 0.38)',
+            }}
+          />
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div
+              style={{
+                width: '82px',
+                height: '82px',
+                borderRadius: '28px',
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem auto',
+                fontSize: '2.4rem',
+                boxShadow: '0 18px 36px rgba(139, 92, 246, 0.3)',
+              }}
+            >
+              🎤
+            </div>
+
+            <h1
+              className="welcome-title"
+              style={{
+                margin: 0,
+                fontSize: '2.15rem',
+                fontWeight: 950,
+                color: '#4c1d95',
+                letterSpacing: '-0.04em',
+              }}
+            >
+              스피치 맞춤형 진단
+            </h1>
+
+            <p
+              style={{
+                margin: '0.9rem 0 0 0',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: '#64748b',
+                lineHeight: 1.6,
+              }}
+            >
+              이용할 모드를 선택해주세요.
+            </p>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '1rem',
+                marginTop: '2.2rem',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <button
+                type="button"
+                onClick={enterStudentMode}
+                style={{
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '1.35rem 1rem',
+                  background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
+                  color: '#5b21b6',
+                  fontSize: '1.25rem',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  boxShadow: '0 14px 28px rgba(124, 58, 237, 0.14)',
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>🧑‍🎓</div>
+                학생 입장
+                <div
+                  style={{
+                    marginTop: '0.35rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 750,
+                    color: '#7c3aed',
+                  }}
+                >
+                  진단 검사 시작하기
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={openTeacherLogin}
+                style={{
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '1.35rem 1rem',
+                  background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
+                  color: '#9d174d',
+                  fontSize: '1.25rem',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>👩‍🏫</div>
+                교사 입장
+                <div
+                  style={{
+                    marginTop: '0.35rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 750,
+                    color: '#be185d',
+                  }}
+                >
+                  모니터링 대시보드 보기
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (!hasEntered) {
+  if (appMode === 'select') {
     return (
-      <div className="card animate-fade-in" style={{
-        maxWidth: '560px',
-        margin: '5rem auto',
-        padding: '2.5rem',
-        textAlign: 'center'
-      }}>
-        <h1 className="welcome-title">정서&스피치 모니터링</h1>
-
-        <p style={{ marginBottom: '0.5rem', fontWeight: 700 }}>
-          {user.displayName || user.email}님, 환영합니다.
-        </p>
-
-        <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: '#64748b' }}>
-          현재 UID: {user.uid}
-        </p>
-
-        <div style={{
+      <div
+        style={{
+          minHeight: '100vh',
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '1.5rem'
-        }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={enterStudent}
-          >
-            학생 입장
-          </button>
+          padding: '2rem',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          className="card animate-fade-in"
+          style={{
+            width: '100%',
+            maxWidth: '680px',
+            padding: '3.2rem 3rem',
+            textAlign: 'center',
+            borderRadius: '34px',
+            background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
+            border: '1.5px solid rgba(196, 181, 253, 0.7)',
+            boxShadow: '0 28px 80px rgba(88, 28, 135, 0.18)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: '-70px',
+              right: '-60px',
+              width: '180px',
+              height: '180px',
+              borderRadius: '999px',
+              background: 'rgba(216, 180, 254, 0.35)',
+            }}
+          />
 
-          {isTeacher && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-80px',
+              left: '-70px',
+              width: '200px',
+              height: '200px',
+              borderRadius: '999px',
+              background: 'rgba(251, 207, 232, 0.38)',
+            }}
+          />
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div
+              style={{
+                width: '82px',
+                height: '82px',
+                borderRadius: '28px',
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.25rem auto',
+                fontSize: '2.4rem',
+                boxShadow: '0 18px 36px rgba(139, 92, 246, 0.3)',
+              }}
+            >
+              🎤
+            </div>
+
+            <h1
+              className="welcome-title"
+              style={{
+                margin: 0,
+                fontSize: '2.15rem',
+                fontWeight: 950,
+                color: '#4c1d95',
+                letterSpacing: '-0.04em',
+              }}
+            >
+              스피치 맞춤형 진단
+            </h1>
+
+            <p
+              style={{
+                margin: '0.9rem 0 0 0',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: '#64748b',
+                lineHeight: 1.6,
+              }}
+            >
+              {user.email}님, 환영합니다.
+              <br />
+              이용할 모드를 선택해주세요.
+            </p>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isTeacherAccount ? '1fr 1fr' : '1fr',
+                gap: '1rem',
+                marginTop: '2.2rem',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <button
+                type="button"
+                onClick={enterStudentMode}
+                style={{
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '1.35rem 1rem',
+                  background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
+                  color: '#5b21b6',
+                  fontSize: '1.25rem',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  boxShadow: '0 14px 28px rgba(124, 58, 237, 0.14)',
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>🧑‍🎓</div>
+                학생 입장
+                <div
+                  style={{
+                    marginTop: '0.35rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 750,
+                    color: '#7c3aed',
+                  }}
+                >
+                  진단 검사 시작하기
+                </div>
+              </button>
+
+              {isTeacherAccount && (
+                <button
+                  type="button"
+                  onClick={openTeacherLogin}
+                  style={{
+                    border: 'none',
+                    borderRadius: '24px',
+                    padding: '1.35rem 1rem',
+                    background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
+                    color: '#9d174d',
+                    fontSize: '1.25rem',
+                    fontWeight: 950,
+                    cursor: 'pointer',
+                    boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
+                  }}
+                >
+                  <div style={{ fontSize: '2rem', marginBottom: '0.45rem' }}>👩‍🏫</div>
+                  교사 입장
+                  <div
+                    style={{
+                      marginTop: '0.35rem',
+                      fontSize: '0.92rem',
+                      fontWeight: 750,
+                      color: '#be185d',
+                    }}
+                  >
+                    모니터링 대시보드 보기
+                  </div>
+                </button>
+              )}
+            </div>
+
+            {!isTeacherAccount && (
+              <p
+                style={{
+                  fontSize: '0.86rem',
+                  color: '#64748b',
+                  marginBottom: '1.2rem',
+                  fontWeight: 700,
+                }}
+              >
+                교사 계정이 아니므로 학생 입장만 가능합니다.
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                border: 'none',
+                background: 'rgba(255, 255, 255, 0.75)',
+                color: '#64748b',
+                fontSize: '1rem',
+                fontWeight: 850,
+                padding: '0.85rem 1.35rem',
+                borderRadius: '999px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 18px rgba(15, 23, 42, 0.06)',
+              }}
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (appMode === 'teacherLogin') {
+    return (
+      <div
+        className="card animate-fade-in"
+        style={{
+          width: '100%',
+          maxWidth: '640px',
+          margin: '4.5rem auto',
+          padding: '3.4rem 3.2rem',
+          borderRadius: '36px',
+          background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 55%, #fdf2f8 100%)',
+          border: '1.5px solid rgba(196, 181, 253, 0.7)',
+          boxShadow: '0 30px 90px rgba(88, 28, 135, 0.2)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '-70px',
+            right: '-60px',
+            width: '180px',
+            height: '180px',
+            borderRadius: '999px',
+            background: 'rgba(216, 180, 254, 0.35)',
+          }}
+        />
+
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-80px',
+            left: '-70px',
+            width: '200px',
+            height: '200px',
+            borderRadius: '999px',
+            background: 'rgba(251, 207, 232, 0.38)',
+          }}
+        />
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '460px',
+            margin: '0 auto',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '1.8rem' }}>
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '22px',
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1rem auto',
+                fontSize: '1.8rem',
+                boxShadow: '0 14px 30px rgba(139, 92, 246, 0.28)',
+              }}
+            >
+              👩‍🏫
+            </div>
+
+            <h1
+              className="welcome-title"
+              style={{
+                textAlign: 'center',
+                margin: 0,
+                fontSize: '1.65rem',
+                fontWeight: 950,
+                color: '#4c1d95',
+              }}
+            >
+              교사 모드 로그인
+            </h1>
+
+            <p
+              className="step-desc-text"
+              style={{
+                textAlign: 'center',
+                margin: '0.65rem 0 0 0',
+                fontSize: '0.95rem',
+                fontWeight: 650,
+                color: '#64748b',
+                lineHeight: 1.55,
+              }}
+            >
+              교사 모드 접속을 위해 비밀번호를 한 번 더 입력해주세요.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.25rem',
+            }}
+          >
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.6rem',
+                  fontSize: '1.05rem',
+                  fontWeight: 900,
+                  color: '#4c1d95',
+                }}
+              >
+                교사 이메일
+              </label>
+
+              <input
+                type="email"
+                value={user.email || ''}
+                disabled
+                style={{
+                  width: '100%',
+                  height: '54px',
+                  borderRadius: '17px',
+                  border: '1.5px solid #ddd6fe',
+                  background: '#f8fafc',
+                  padding: '0 1rem',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: '#64748b',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.6rem',
+                  fontSize: '1.05rem',
+                  fontWeight: 900,
+                  color: '#4c1d95',
+                }}
+              >
+                교사 비밀번호
+              </label>
+
+              <input
+                type="password"
+                value={teacherPassword}
+                onChange={(e) => setTeacherPassword(e.target.value)}
+                placeholder="교사 비밀번호 입력"
+                style={{
+                  width: '100%',
+                  height: '54px',
+                  borderRadius: '17px',
+                  border: '1.5px solid #ddd6fe',
+                  background: '#ffffff',
+                  padding: '0 1rem',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                  color: '#334155',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  boxShadow: '0 8px 18px rgba(88, 28, 135, 0.06)',
+                }}
+              />
+            </div>
+
+            {teacherLoginError && (
+              <p
+                style={{
+                  color: 'hsl(350, 75%, 45%)',
+                  fontWeight: 800,
+                  margin: '-0.3rem 0 0 0',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {teacherLoginError}
+              </p>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.8rem',
+              marginTop: '1.7rem',
+            }}
+          >
             <button
               type="button"
               className="btn btn-success"
-              onClick={enterTeacher}
+              onClick={handleTeacherLogin}
+              disabled={isTeacherLoginLoading}
+              style={{
+                width: '220px',
+                height: '56px',
+                borderRadius: '18px',
+                fontSize: '1.05rem',
+                fontWeight: 950,
+                boxShadow: '0 14px 28px rgba(124, 58, 237, 0.26)',
+              }}
             >
-              교사 입장
+              {isTeacherLoginLoading ? '로그인 중...' : '교사 로그인'}
             </button>
-          )}
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setAppMode('select')}
+              disabled={isTeacherLoginLoading}
+              style={{
+                width: '160px',
+                height: '44px',
+                borderRadius: '16px',
+                fontSize: '0.92rem',
+                fontWeight: 850,
+              }}
+            >
+              돌아가기
+            </button>
+          </div>
         </div>
-
-        {!isTeacher && (
-          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
-            교사 계정이 아니므로 학생 입장만 가능합니다.
-          </p>
-        )}
-
-        <button
-          type="button"
-          className="btn btn-secondary btn-small"
-          onClick={handleLogout}
-        >
-          로그아웃
-        </button>
       </div>
     );
   }
@@ -173,29 +997,41 @@ function App() {
       <Header
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        isTeacher={isTeacher}
-        userEmail={user.email}
-        onLogout={handleLogout}
+        isTeacherMode={isTeacherMode}
+        onLogout={goToFirstScreen}
+        onExitTeacherMode={exitTeacherMode}
       />
 
       {showConfigGuide && (
-        <div className="card animate-fade-in" style={{
-          marginBottom: '1.5rem',
-          borderLeft: '4px solid hsl(14, 85%, 58%)',
-          background: 'var(--bg-pastel-peach)',
-          padding: '1.25rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '1rem'
-        }}>
+        <div
+          className="card animate-fade-in"
+          style={{
+            marginBottom: '1.5rem',
+            borderLeft: '4px solid hsl(14, 85%, 58%)',
+            background: 'var(--bg-pastel-peach)',
+            padding: '1.25rem 1.5rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+        >
           <div style={{ flex: 1 }}>
-            <h4 style={{ color: 'hsl(14, 80%, 25%)', marginBottom: '0.25rem', fontSize: '0.95rem', fontWeight: 'bold' }}>
+            <h4
+              style={{
+                color: 'hsl(14, 80%, 25%)',
+                marginBottom: '0.25rem',
+                fontSize: '0.95rem',
+                fontWeight: 'bold',
+              }}
+            >
               ℹ️ Firebase 설정이 등록되지 않아 임시 저장 모드(Demo Mode)로 열렸습니다.
             </h4>
+
             <p style={{ fontSize: '0.82rem', color: 'hsl(14, 80%, 35%)', fontWeight: '500' }}>
-              진단 결과 및 상담 JPG 보고서는 브라우저에 임시로 저장되며, 이 컴퓨터 화면 안에서 자유롭게 테스트해 볼 수 있습니다.<br />
-              실제 클라우드 데이터베이스에 연동하려면 프로젝트 폴더 루트에 <strong>.env.local</strong> 파일을 만들어 Firebase 키를 추가해 주세요. (가이드는 <strong>.env.example</strong> 참고)
+              진단 결과 및 상담 JPG 보고서는 브라우저에 임시로 저장되며, 이 컴퓨터 화면 안에서 자유롭게 테스트해 볼 수 있습니다.
+              <br />
+              실제 클라우드 데이터베이스에 연동하려면 프로젝트 폴더 루트에 <strong>.env.local</strong> 파일을 만들어 Firebase 키를 추가해 주세요.
             </p>
           </div>
 
@@ -208,7 +1044,7 @@ function App() {
               background: 'rgba(244, 63, 94, 0.1)',
               color: 'hsl(350, 75%, 45%)',
               padding: '0.4rem 0.8rem',
-              borderRadius: '6px'
+              borderRadius: '6px',
             }}
           >
             안내 닫기
@@ -217,10 +1053,10 @@ function App() {
       )}
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {currentTab === 'assessment' ? (
-          <StudentAssessment />
-        ) : (
+        {isTeacherMode ? (
           <CoachDashboard />
+        ) : (
+          <StudentAssessment />
         )}
       </main>
     </>

@@ -214,3 +214,17 @@
 .highlight-guide {
   margin-bottom: 28px;
 }
+
+.sidebar-card {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.coach-dashboard-wrapper {
+  overflow: visible;
+}
+
+.dashboard-main-grid {
+  align-items: start;
+}
