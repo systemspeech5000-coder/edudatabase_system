@@ -2904,9 +2904,9 @@ export const CoachDashboard: React.FC = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 280px))',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
               gap: '1rem',
-              justifyContent: 'flex-start',
+              width: '100%',
             }}
           >
             {filteredSpeechProgressReports.map((report) => (
