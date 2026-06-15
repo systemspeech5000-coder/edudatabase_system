@@ -771,11 +771,7 @@ export const CoachDashboard: React.FC = () => {
     const topGender = sortedGenderStats[0];
     const secondGender = sortedGenderStats[1];
 
-    const genderSummaryText = hasGenderData
-      ? secondGender && topGender.count === secondGender.count
-        ? `${topGender.label}와 ${secondGender.label}가 같습니다.`
-        : `${topGender.label}가 더 많습니다.`
-      : '성별 정보가 아직 부족합니다.';
+    const isGenderTied = hasGenderData && !!topGender && !!secondGender && topGender.count === secondGender.count;
 
     const sortedAgeGroupStats = [...stats.ageGroupStats]
       .filter((item) => item.count > 0)
@@ -783,11 +779,7 @@ export const CoachDashboard: React.FC = () => {
     const firstAgeGroup = sortedAgeGroupStats[0];
     const secondAgeGroup = sortedAgeGroupStats[1];
 
-    const ageSummaryText = hasAgeData
-      ? firstAgeGroup && secondAgeGroup
-        ? `${firstAgeGroup.label}와 ${secondAgeGroup.label}가 가장 많습니다.`
-        : `${firstAgeGroup?.label ?? '-'}가 가장 많습니다.`
-      : '나이대 정보가 아직 부족합니다.';
+    const hasTwoAgeGroups = hasAgeData && !!firstAgeGroup && !!secondAgeGroup;
 
     if (!hasGenderData && !hasAgeData) {
       return (
@@ -826,6 +818,11 @@ export const CoachDashboard: React.FC = () => {
 
     const countStyle: React.CSSProperties = {
       color: '#475569',
+      fontWeight: 950,
+    };
+
+    const summaryHighlightStyle: React.CSSProperties = {
+      color: '#4c1d95',
       fontWeight: 950,
     };
 
@@ -908,7 +905,20 @@ export const CoachDashboard: React.FC = () => {
                 lineHeight: 1.45,
               }}
             >
-              {genderSummaryText}
+              {hasGenderData ? (
+                isGenderTied ? (
+                  <>
+                    <strong style={summaryHighlightStyle}>{topGender?.label ?? '-'}</strong>와{' '}
+                    <strong style={summaryHighlightStyle}>{secondGender?.label ?? '-'}</strong>가 같습니다.
+                  </>
+                ) : (
+                  <>
+                    <strong style={summaryHighlightStyle}>{topGender?.label ?? '-'}</strong>가 더 많습니다.
+                  </>
+                )
+              ) : (
+                '성별 정보가 아직 부족합니다.'
+              )}
             </p>
 
             <div
@@ -955,7 +965,20 @@ export const CoachDashboard: React.FC = () => {
                 lineHeight: 1.45,
               }}
             >
-              {ageSummaryText}
+              {hasAgeData ? (
+                hasTwoAgeGroups ? (
+                  <>
+                    <strong style={summaryHighlightStyle}>{firstAgeGroup?.label ?? '-'}</strong>와{' '}
+                    <strong style={summaryHighlightStyle}>{secondAgeGroup?.label ?? '-'}</strong>가 가장 많습니다.
+                  </>
+                ) : (
+                  <>
+                    <strong style={summaryHighlightStyle}>{firstAgeGroup?.label ?? '-'}</strong>가 가장 많습니다.
+                  </>
+                )
+              ) : (
+                '나이대 정보가 아직 부족합니다.'
+              )}
             </p>
 
             <div
