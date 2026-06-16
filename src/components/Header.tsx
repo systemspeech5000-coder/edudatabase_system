@@ -46,6 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
       <nav className="header-nav">
         {!isTeacherMode && (
           <button
+            type="button"
             className={`nav-btn ${currentTab === 'assessment' ? 'active' : ''}`}
             onClick={() => setCurrentTab('assessment')}
           >
@@ -56,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
         {isTeacherMode && (
           <>
             <button
+              type="button"
               className={`nav-btn ${currentTab === 'dashboard' ? 'active' : ''}`}
               onClick={() => setCurrentTab('dashboard')}
             >
@@ -63,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
+              type="button"
               className={`nav-btn ${currentTab === 'finance' ? 'active' : ''}`}
               onClick={() => setCurrentTab('finance')}
             >

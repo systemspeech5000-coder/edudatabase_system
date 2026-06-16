@@ -55,6 +55,21 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (appMode === 'teacher') {
+      setCurrentTab((prev) => (prev === 'finance' ? 'finance' : 'dashboard'));
+    }
+
+    if (appMode === 'student') {
+      setCurrentTab('assessment');
+    }
+
+    if (appMode === 'select' || appMode === 'teacherLogin') {
+      setCurrentTab('assessment');
+    }
+  }, [appMode]);
+
+
   const handleEmailLogin = async () => {
     if (!auth) {
       alert('Firebase 설정이 필요합니다. Vercel 환경변수를 먼저 확인해주세요.');
@@ -450,7 +465,7 @@ function App() {
           />
 
           <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <StudentAssessment />
+            <StudentAssessment key="student-assessment" />
           </main>
         </>
       );
@@ -723,7 +738,7 @@ function App() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isTeacherAccount ? '1fr 1fr' : '1fr',
+                gridTemplateColumns: 'repeat(2, minmax(280px, 1fr))',
                 gap: '1rem',
                 marginTop: '1.45rem',
                 marginBottom: '0.9rem',
@@ -757,51 +772,35 @@ function App() {
                   진단 검사 시작하기
                 </div>
               </button>
-
-              {isTeacherAccount && (
-                <button
-                  type="button"
-                  onClick={openTeacherLogin}
-                  style={{
-                    border: 'none',
-                    borderRadius: '24px',
-                    padding: '1.05rem 1.25rem',
-                    background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
-                    color: '#9d174d',
-                    fontSize: '1.25rem',
-                    fontWeight: 950,
-                    cursor: 'pointer',
-                    boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
-                  }}
-                >
-                  <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>👩‍🏫</div>
-                  교사 입장
-                  <div
-                    style={{
-                      marginTop: '0.35rem',
-                      fontSize: '0.92rem',
-                      fontWeight: 750,
-                      color: '#be185d',
-                    }}
-                  >
-                    모니터링 대시보드 보기
-                  </div>
-                </button>
-              )}
-            </div>
-
-            {!isTeacherAccount && (
-              <p
+              <button
+                type="button"
+                onClick={openTeacherLogin}
                 style={{
-                  fontSize: '0.86rem',
-                  color: '#64748b',
-                  marginBottom: '1.2rem',
-                  fontWeight: 700,
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '1.05rem 1.25rem',
+                  background: 'linear-gradient(135deg, #fce7f3, #faf5ff)',
+                  color: '#9d174d',
+                  fontSize: '1.25rem',
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  boxShadow: '0 14px 28px rgba(236, 72, 153, 0.14)',
                 }}
               >
-                교사 계정이 아니므로 학생 입장만 가능합니다.
-              </p>
-            )}
+                <div style={{ fontSize: '1.65rem', marginBottom: '0.25rem' }}>👩‍🏫</div>
+                교사 입장
+                <div
+                  style={{
+                    marginTop: '0.35rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 750,
+                    color: '#be185d',
+                  }}
+                >
+                  모니터링 대시보드 보기
+                </div>
+              </button>
+            </div>
 
           </div>
         </div>
@@ -1132,7 +1131,7 @@ function App() {
             <CoachDashboard />
           )
         ) : (
-          <StudentAssessment />
+          <StudentAssessment key="student-assessment" />
         )}
       </main>
     </>
