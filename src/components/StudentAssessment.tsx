@@ -1127,7 +1127,7 @@ export const StudentAssessment: React.FC = () => {
             <button
               type="button"
               className="btn btn-primary test-important-btn"
-              onClick={() => window.open('https://eduproject-git-main-attractionspeech-3197s-projects.vercel.app/', '_blank')}
+              onClick={() => window.open('https://eduproject-liard.vercel.app/', '_blank')}
               disabled={isSubmitting}
               style={{
                 minWidth: '320px',
