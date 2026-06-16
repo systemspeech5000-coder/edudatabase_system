@@ -33,6 +33,10 @@ type ExtendedStudentInfo = Omit<StudentInfo, 'birthDate'> & {
 };
 
 export const StudentAssessment: React.FC = () => {
+  const symptomContentItems = SYMPTOM_CATEGORIES.content ?? [];
+  const symptomDeliveryItems = SYMPTOM_CATEGORIES.delivery ?? [];
+  const symptomInteractionItems = SYMPTOM_CATEGORIES.interaction ?? [];
+
   const [studentName, setStudentName] = useState('');
   const [isNameConfirmed, setIsNameConfirmed] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -724,7 +728,7 @@ export const StudentAssessment: React.FC = () => {
               <div className="symptom-category">
                 <h3 className="category-title text-indigo">1. 내용구성 📝</h3>
                 <div className="checkbox-list">
-                  {SYMPTOM_CATEGORIES.content.map((sym) => (
+                  {symptomContentItems.map((sym) => (
                     <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
                       <input
                         type="checkbox"
@@ -741,7 +745,7 @@ export const StudentAssessment: React.FC = () => {
               <div className="symptom-category">
                 <h3 className="category-title text-purple">2. 표현 및 전달 🗣️</h3>
                 <div className="checkbox-list">
-                  {SYMPTOM_CATEGORIES.delivery.map((sym) => (
+                  {symptomDeliveryItems.map((sym) => (
                     <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
                       <input
                         type="checkbox"
@@ -758,7 +762,7 @@ export const StudentAssessment: React.FC = () => {
               <div className="symptom-category">
                 <h3 className="category-title text-pink">3. 청중과 상호작용 👥</h3>
                 <div className="checkbox-list">
-                  {SYMPTOM_CATEGORIES.interaction.map((sym) => (
+                  {symptomInteractionItems.map((sym) => (
                     <label key={sym} className={`checkbox-card ${symptoms.includes(sym) ? 'checked' : ''}`}>
                       <input
                         type="checkbox"
